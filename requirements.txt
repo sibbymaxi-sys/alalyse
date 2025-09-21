@@ -1,0 +1,5 @@
+pandas
+reportlab
+tkcalendar
+sv-ttk
+matplotlib

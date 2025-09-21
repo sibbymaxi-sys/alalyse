@@ -1,0 +1,43 @@
+Der Masterkey lautet: QWRtaW46bmV2ZXI6OGU3ZjUzZTQ0MTYzNDQzN2U3ZWYwYmIzMjMzNDZiZDZhYjU5ZDU0MzFmOTliZTA3MDNlYmU4YTkxMzUyYzQ0Yg==
+
+Dieser Schlüssel wird für den Benutzernamen Admin generiert und hat, wie in unserer license_generator.py-Datei festgelegt, kein Ablaufdatum.
+
+Patrick=UGF0cmljazoyMDI2LTAzLTE5OjNkZWIzMTEzNjcwNzIyYmM0M2FiYzIzZjA1YmZmYzM2YWMwNDQ5OTdiYjczMTM1NGFkMzM4NmFkNjFlYjE3NzY=
+
+So starten Sie das Programm jetzt korrekt:
+Das Vorgehen hat sich durch das Lizenzsystem geändert. Sie müssen das Programm jetzt einmalig "freischalten".
+
+Schritt 1: Lizenzschlüssel generieren
+
+Öffnen Sie eine Kommandozeile (CMD oder PowerShell) in Ihrem Projektverzeichnis.
+
+Aktivieren Sie Ihre virtuelle Umgebung mit dem Befehl: .venv\Scripts\activate
+
+Führen Sie den Lizenz-Generator aus mit: python license_generator.py
+
+Geben Sie Ihren Benutzernamen ein (z.B. "Patrick") und drücken Sie Enter.
+
+Das Programm generiert einen 6-Monats-Lizenzschlüssel für Sie. Kopieren Sie diesen Schlüssel.
+
+Schritt 2: Programm aktivieren
+
+Starten Sie das Hauptprogramm wie gewohnt über die run_windows.bat.
+
+Anstelle des Analyse-Fensters wird sich jetzt das "Lizenzaktivierung"-Fenster öffnen.
+
+Geben Sie exakt den Benutzernamen aus Schritt 1 ein.
+
+Fügen Sie den kopierten Lizenzschlüssel ein.
+
+Klicken Sie auf "Aktivieren".
+
+Das Programm speichert die Lizenz nun in einer config.ini-Datei. Ab jetzt wird es bei jedem Start die Lizenz im Hintergrund prüfen und – solange sie gültig ist – direkt zum gewohnten Analyse-Hub starten.
+
+Ihr Masterkey zum Testen
+Um Ihnen den Prozess zu erleichtern, können Sie auch den unbegrenzt gültigen Masterkey verwenden, den wir erstellt haben:
+
+Benutzername: Admin
+
+Masterkey: QWRtaW46bmV2ZXI6OGU3ZjUzZTQ0MTYzNDQzN2U3ZWYwYmIzMjMzNDZiZDZhYjU5ZDU0MzFmOTliZTA3MDNlYmU4YTkxMzUyYzQ0Yg==
+
+Geben Sie diese beiden Werte in das Aktivierungsfenster ein, und das Programm wird dauerhaft freigeschaltet.
