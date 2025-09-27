@@ -1,17 +1,40 @@
-import re; import pandas as pd; from datetime import datetime
+# plc_log_parser.py
+import re
+import pandas as pd
+from datetime import datetime
+
 TS_PATTERN = re.compile(r"^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)")
 RTR_BIT_PATTERN = re.compile(r"Ready To Receive Bit To BHS (High|Low)")
-IBDR_PATTERN = re.compile(r"IBDR PS: \d+ BT: (\d+)")
+# NEU: Erkennt jetzt spezifische Lichtschranken (Photo-Cells)
+PHOTOCELL_PATTERN = re.compile(r"(IBDR|XBDP) PS: \d+ BT: (\d+)")
+
 def parse_line(line):
-    if m := RTR_BIT_PATTERN.search(line): return f"[PLC] Meldesignal 'Ready To Receive' an BHS ist jetzt '{m.group(1)}'."
-    if m := IBDR_PATTERN.search(line): return f"[PLC] Wanne '{m.group(1)}' hat Lichtschranken passiert."
+    if m := RTR_BIT_PATTERN.search(line):
+        state = m.group(1)
+        explanation = "Scanner ist bereit, Wannen zu empfangen." if state == "High" else "Scanner ist NICHT bereit."
+        return f"[PLC] Meldesignal 'Ready To Receive' ist '{state}'. Bedeutung: {explanation}"
+        
+    if m := PHOTOCELL_PATTERN.search(line):
+        sensor, tray_id = m.groups()
+        sensor_name = "Einlauf-Lichtschranke (IBDR)" if sensor == "IBDR" else "Auslauf-Lichtschranke (XBDP)"
+        return f"[PLC] IST-ZUSTAND: Wanne '{tray_id}' hat '{sensor_name}' passiert."
+        
     return None
+
 def parse_log(file_path):
     records = []
+    last_month = None
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
             if ts_match := TS_PATTERN.search(line):
-                try: dt = datetime.strptime(ts_match.group(1), "%a %b %d %H:%M:%S.%f")
+                try:
+                    ts_str_no_year = ts_match.group(1).split('.')[0]
+                    dt_no_year = datetime.strptime(ts_str_no_year, "%a %b %d %H:%M:%S")
+                    year_to_use = 2025 
+                    if last_month and dt_no_year.month < last_month: year_to_use += 1
+                    dt_object = dt_no_year.replace(year=year_to_use)
+                    last_month = dt_object.month
                 except ValueError: continue
-                if klartext := parse_line(line): records.append({"Timestamp": dt, "Quelle": "PLC", "Ereignis": klartext, "OriginalLog": line.strip()})
+                if klartext := parse_line(line):
+                    records.append({"Timestamp": dt_object, "Quelle": "PLC", "Ereignis": klartext, "OriginalLog": line.strip()})
     return pd.DataFrame(records)

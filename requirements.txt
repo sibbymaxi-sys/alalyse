@@ -3,3 +3,4 @@ reportlab
 tkcalendar
 sv-ttk
 matplotlib
+paramiko

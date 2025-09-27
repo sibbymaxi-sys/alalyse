@@ -1,11 +1,32 @@
-import re; import pandas as pd; from datetime import datetime
+# bhs_log_parser.py
+import re
+import pandas as pd
+from datetime import datetime
+
 TS_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})")
-BHS_STATE_PATTERN = re.compile(r"BHS in state '(\w+)'"); ELEMENT_CMD_PATTERN = re.compile(r"Command successful for element '([\w-]+)'"); ERROR_PATTERN = re.compile(r"ERROR: Element '([\w-]+)' failed to respond")
+BHS_STATE_PATTERN = re.compile(r"BHS in state '(\w+)'")
+# NEU: Erkennt jetzt spezifische Befehle
+ELEMENT_CMD_PATTERN = re.compile(r"Command successful for element '([\w-]+)' : '([\w-]+)'")
+ERROR_PATTERN = re.compile(r"ERROR: Element '([\w-]+)' failed to respond")
+PLC_CONN_ERROR = re.compile(r"PlcWrite - ERROR!!! PLC not connected")
+
 def parse_line(line):
-    if m := BHS_STATE_PATTERN.search(line): return f"[BHS] Anlagen-Status: '{m.group(1)}'"
-    if m := ELEMENT_CMD_PATTERN.search(line): return f"[BHS] Befehl für Anlagenteil '{m.group(1)}' erfolgreich."
-    if m := ERROR_PATTERN.search(line): return f"[BHS] FEHLER: Anlagenteil '{m.group(1)}' antwortet nicht."
+    if m := BHS_STATE_PATTERN.search(line):
+        state = m.group(1); explanation = {"Ready": "Bereit für Betrieb", "Running": "Förderanlage in Betrieb", "Stopped": "Förderanlage gestoppt"}.get(state, state)
+        return f"[BHS] Anlagen-Status: '{explanation}'"
+        
+    if m := ELEMENT_CMD_PATTERN.search(line):
+        element, command = m.groups()
+        return f"[BHS] SOLL-BEFEHL: Anlagenteil '{element}' soll Befehl '{command}' ausführen."
+        
+    if m := ERROR_PATTERN.search(line):
+        return f"[BHS] KRITISCHER FEHLER: Anlagenteil '{m.group(1)}' antwortet nicht. (Hardware/Verbindungsproblem)"
+        
+    if PLC_CONN_ERROR.search(line):
+        return f"[BHS] KRITISCHER FEHLER: Verbindung zur Anlagensteuerung (SPS/PLC) verloren!"
+
     return None
+
 def parse_log(file_path):
     records = []
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -13,5 +34,6 @@ def parse_log(file_path):
             if ts_match := TS_PATTERN.search(line):
                 try: dt = datetime.strptime(ts_match.group(1), "%Y-%m-%d %H:%M:%S,%f")
                 except ValueError: continue
-                if klartext := parse_line(line): records.append({"Timestamp": dt, "Quelle": "BHS", "Ereignis": klartext, "OriginalLog": line.strip()})
+                if klartext := parse_line(line):
+                    records.append({"Timestamp": dt, "Quelle": "BHS", "Ereignis": klartext, "OriginalLog": line.strip()})
     return pd.DataFrame(records)

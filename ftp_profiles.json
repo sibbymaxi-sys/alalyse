@@ -1,0 +1,24 @@
+{
+    "MV3D FKB": {
+        "host": "",
+        "user": "anonymous",
+        "passwd": "",
+        "remote_paths": {
+            "IAC": "/logs/iac/",
+            "IRC": "/logs/irc/",
+            "DPP": "/logs/dpp/",
+            "SCS": "/logs/scs/"
+        }
+    },
+    "SC FRA": {
+        "host": "",
+        "user": "anonymous",
+        "passwd": "",
+        "remote_paths": {
+            "IAC": "/logs/iac/",
+            "IRC": "/logs/irc/",
+            "DPP": "/logs/dpp/",
+            "SCS": "/logs/scs/"
+        }
+    }
+}
