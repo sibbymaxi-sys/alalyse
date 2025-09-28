@@ -16,13 +16,13 @@ class AdvancedSearchDialog(tk.Toplevel):
         ttk.Label(frame, text="IATA enthält:").grid(row=1, column=0, sticky="w", pady=5)
         self.iata_entry = ttk.Entry(frame, width=30); self.iata_entry.grid(row=1, column=1)
         
-        # **NEU:** Das Datumsformat wurde auf Monat-Tag geändert.
+        # **KORRIGIERT:** Verwendet ein gültiges Datumsformat und gibt das gewünschte 'mm-dd' zurück
         ttk.Label(frame, text="Datum von (Monat-Tag):").grid(row=2, column=0, sticky="w", pady=5)
-        self.start_date_entry = DateEntry(frame, width=12, background='darkblue', foreground='white', borderwidth=2, date_pattern='mm-dd')
+        self.start_date_entry = DateEntry(frame, width=12, background='darkblue', foreground='white', borderwidth=2, date_pattern='dd.mm.yyyy', locale='de_DE')
         self.start_date_entry.grid(row=2, column=1, sticky="w")
         
         ttk.Label(frame, text="Datum bis (Monat-Tag):").grid(row=3, column=0, sticky="w", pady=5)
-        self.end_date_entry = DateEntry(frame, width=12, background='darkblue', foreground='white', borderwidth=2, date_pattern='mm-dd')
+        self.end_date_entry = DateEntry(frame, width=12, background='darkblue', foreground='white', borderwidth=2, date_pattern='dd.mm.yyyy', locale='de_DE')
         self.end_date_entry.grid(row=3, column=1, sticky="w")
 
         self.oms_only_var = tk.BooleanVar()
@@ -33,11 +33,14 @@ class AdvancedSearchDialog(tk.Toplevel):
         ttk.Button(button_frame, text="Abbrechen", command=self.destroy).pack(side=tk.LEFT, padx=5)
 
     def _on_search(self):
+        start_date = self.start_date_entry.get_date()
+        end_date = self.end_date_entry.get_date()
+
         self.result = {
             "bag_id": self.bag_id_entry.get(), 
             "iata": self.iata_entry.get(), 
-            "start_date": self.start_date_entry.get(), 
-            "end_date": self.end_date_entry.get(), 
+            "start_date": start_date.strftime('%m-%d'), 
+            "end_date": end_date.strftime('%m-%d'), 
             "oms_only": self.oms_only_var.get()
         }
         self.destroy()

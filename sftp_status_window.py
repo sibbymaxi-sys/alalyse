@@ -26,7 +26,8 @@ class SFTPStatusWindow(tk.Toplevel):
         self.log_text.pack(fill=tk.BOTH, expand=True)
         self.log_text.config(state="disabled")
 
-        self.protocol("WM_DELETE_WINDOW", lambda: None) # Verhindert das Schließen durch den Benutzer
+        # Verhindert, dass der Benutzer das Fenster schließt, während der Prozess läuft
+        self.protocol("WM_DELETE_WINDOW", lambda: None) 
 
     def update_status(self, message, progress=None):
         """ Aktualisiert die UI-Elemente im Haupt-Thread. """

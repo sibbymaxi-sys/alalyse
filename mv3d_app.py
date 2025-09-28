@@ -14,6 +14,7 @@ from log_previewer import preview_log_directory
 from ftp_dialog_mv3d import FTPDialogMV3D
 from ftp_client import SFTPClient
 from sftp_status_window import SFTPStatusWindow
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Importiere alle Parser
 from bhs_log_parser import parse_log as parse_bhs
@@ -24,9 +25,14 @@ from scs_log_parser import parse_log as parse_scs
 from iqtk_log_parser import parse_log as parse_iqtk
 from fsm_log_parser import parse_log as parse_fsm
 
+# Wrapper-Funktion für die Parallelisierung
+def parse_file_wrapper(path_and_parser):
+    path, parser_func = path_and_parser
+    return parser_func(path)
+
 class MV3DApp(BaseApp):
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, app_name="MV3D System Analyzer", version="6.9 (Final)", *args, **kwargs)
+        super().__init__(parent, app_name="MV3D System Analyzer", version="7.0 (Parallelized)", *args, **kwargs)
         self.combined_df = pd.DataFrame() 
         self.incidents_df = pd.DataFrame()
         self.loading_win = None
@@ -40,6 +46,7 @@ class MV3DApp(BaseApp):
         main_frame = ttk.Frame(self, padding="10"); main_frame.pack(fill=tk.BOTH, expand=True)
         control_frame = ttk.Frame(main_frame); control_frame.pack(fill=tk.X, pady=5)
         ttk.Button(control_frame, text="Logs laden & Fall-Akten erstellen", command=self._load_from_dialog).pack(side=tk.LEFT, padx=5, pady=5)
+        
         ttk.Label(control_frame, text="Nach Datum filtern:").pack(side=tk.LEFT, padx=(20, 5))
         self.date_filter_combo = ttk.Combobox(control_frame, state="readonly", width=15)
         self.date_filter_combo.pack(side=tk.LEFT, padx=5)
@@ -54,11 +61,15 @@ class MV3DApp(BaseApp):
         self.tree.heading("RootCause", text="Beschreibung / Ursache"); self.tree.column("RootCause", width=600)
         self.tree.bind("<Double-1>", self._on_incident_select)
         scrollbar = ttk.Scrollbar(incident_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
         status_frame = ttk.Frame(main_frame); status_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        self.connection_indicator = tk.Canvas(status_frame, width=15, height=15, bd=0, highlightthickness=0)
+        self.indicator_oval = self.connection_indicator.create_oval(2, 2, 14, 14, fill="gray")
+        self.connection_indicator.pack(side=tk.LEFT, padx=5, pady=2)
         self.status_label = ttk.Label(status_frame, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
+        self._update_indicator_color()
 
     def _open_ftp_dialog(self):
-        """ Öffnet den spezifischen SFTP-Dialog für MV3D. """
         dialog = FTPDialogMV3D(self)
         sftp_details = dialog.show()
         if sftp_details:
@@ -70,10 +81,11 @@ class MV3DApp(BaseApp):
             thread.start()
 
     def _run_sftp_download(self, details, local_dir, progress_callback, status_win):
-        """ Lädt von mehreren IPs/Verzeichnissen für MV3D via SFTP. """
         user = details.get("user"); passwd = details.get("passwd"); targets = details.get("targets", {})
         all_downloaded_files = []; has_errors = False
         
+        self.set_connection_status("connected")
+
         total_targets = len([t for t in targets.values() if t.get("host") and t.get("path")])
         completed_targets = 0
 
@@ -89,7 +101,7 @@ class MV3DApp(BaseApp):
                 if not downloaded: has_errors = True
                 else: all_downloaded_files.extend(downloaded)
             else:
-                has_errors = True
+                has_errors = True; self.set_connection_status("error")
             
             client.disconnect()
             completed_targets += 1
@@ -97,11 +109,12 @@ class MV3DApp(BaseApp):
             progress_callback(f"System '{system}' abgeschlossen.", progress)
         
         if not all_downloaded_files and has_errors:
-             self.after(0, lambda: messagebox.showerror("Download fehlgeschlagen", "Es konnten keine Log-Dateien heruntergeladen werden.", parent=self))
+             self.after(0, lambda: messagebox.showerror("Download fehlgeschlagen", "Es konnten nicht alle Log-Dateien heruntergeladen werden.", parent=self))
         elif all_downloaded_files:
             self.after(0, self.on_ftp_download_complete, local_dir)
 
         self.after(0, status_win.close_window)
+        if not has_errors: self.set_connection_status("disconnected")
 
     def on_ftp_download_complete(self, directory):
         self._process_directory(directory)
@@ -140,9 +153,13 @@ class MV3DApp(BaseApp):
         
         all_dfs = []
         try:
-            for i, (path, parser) in enumerate(files_to_process):
-                df = parser(path)
-                if not df.empty: all_dfs.append(df)
+            with ProcessPoolExecutor() as executor:
+                futures = {executor.submit(parse_file_wrapper, item): item for item in files_to_process}
+                for i, future in enumerate(as_completed(futures)):
+                    self.after(0, self._update_progress, i + 1, len(futures) + 1, f"Datei {i+1} von {len(futures)} parallel analysiert...")
+                    df = future.result()
+                    if not df.empty: all_dfs.append(df)
+            
             if not all_dfs: self.after(0, self._finalize_loading, False, "Keine Log-Einträge in den verarbeiteten Dateien gefunden."); return
             
             temp_df = pd.concat(all_dfs).sort_values(by="Timestamp").reset_index(drop=True)
@@ -154,6 +171,7 @@ class MV3DApp(BaseApp):
                 self.combined_df = temp_df
             if self.combined_df.empty: self.after(0, self._finalize_loading, False, "Keine Log-Einträge im gewählten Zeitraum gefunden."); return
             
+            self.after(0, self._update_progress, len(futures) + 1, len(futures) + 1, "Erstelle Fall-Akten...")
             self._identify_incidents_efficiently()
             
             message = f"{len(self.incidents_df)} kritische Ereignisse (Fall-Akten) wurden identifiziert."
@@ -172,18 +190,16 @@ class MV3DApp(BaseApp):
             messagebox.showwarning("Fehler", message, parent=self)
 
     def _identify_incidents_efficiently(self):
-        incidents = []
-        error_rows = self.combined_df[self.combined_df['OriginalLog'].str.contains("ERROR|FAIL|FAULT|overrunCount", case=False, na=False)]
-        processed_indices = set()
-        
+        incidents = []; error_rows = self.combined_df[self.combined_df['OriginalLog'].str.contains("ERROR|FAIL|FAULT|overrunCount", case=False, na=False)]; processed_indices = set()
+        total_errors = len(error_rows); current_error = 0
         for index, row in error_rows.iterrows():
             if index in processed_indices: continue
+            current_error += 1; self.after(0, self._update_incident_progress, current_error, total_errors)
             
             incident_type = "System-Fehler"
             if "overrunCount" in row['OriginalLog']:
                 match = re.search(r"overrunCount=(\d+)", row['OriginalLog'])
-                if match and int(match.group(1)) > 0:
-                    incident_type = "System-Overrun"
+                if match and int(match.group(1)) > 0: incident_type = "System-Overrun"
                 else: continue
             
             error_timestamp = row['Timestamp']
@@ -198,7 +214,6 @@ class MV3DApp(BaseApp):
             if not bhs_states.empty: last_bhs_state = bhs_states.iloc[-1]['Ereignis'].split(': ')[-1].replace("'", "")
             
             root_cause_text = "Overrun-Zähler erhöht." if incident_type == "System-Overrun" else check_for_error(row['OriginalLog'])[0]
-
             incidents.append({'Timestamp': error_timestamp, 'Type': incident_type, 'RootCause': root_cause_text, 'data': incident_df, 'context': {'scs_opstate': last_scs_opstate, 'bhs_state': last_bhs_state}})
             processed_indices.update(incident_df.index)
         self.incidents_df = pd.DataFrame(incidents)
@@ -251,13 +266,18 @@ class MV3DApp(BaseApp):
         log_text.tag_configure("error", background="#FFD2D2", font=("Courier New", 9, "bold")); log_text.config(state="disabled")
 
     def _create_loading_window(self):
-        self.loading_win = tk.Toplevel(self); self.loading_win.title("Ladevorgang"); self.loading_win.geometry("450x130"); self.loading_win.resizable(False, False); self.update_idletasks(); x = self.winfo_screenwidth() // 2 - self.loading_win.winfo_width() // 2; y = self.winfo_screenheight() // 2 - self.loading_win.winfo_height() // 2; self.loading_win.geometry(f"+{x}+{y}"); self.loading_win.transient(self); self.loading_win.grab_set()
+        self.loading_win = tk.Toplevel(self); self.loading_win.title("Ladevorgang"); self.loading_win.geometry("450x150"); self.loading_win.resizable(False, False); self.update_idletasks(); x = self.winfo_screenwidth() // 2 - self.loading_win.winfo_width() // 2; y = self.winfo_screenheight() // 2 - self.loading_win.winfo_height() // 2; self.loading_win.geometry(f"+{x}+{y}"); self.loading_win.transient(self); self.loading_win.grab_set()
         self.loading_label = ttk.Label(self.loading_win, text="Initialisiere...", font=("Helvetica", 10)); self.loading_label.pack(pady=(15, 5), padx=10, anchor="w")
         self.loading_progress_bar = ttk.Progressbar(self.loading_win, orient="horizontal", mode="determinate"); self.loading_progress_bar.pack(fill=tk.X, expand=True, padx=10)
         self.percent_label = ttk.Label(self.loading_win, text="0%", font=("Helvetica", 10)); self.percent_label.pack(pady=5)
+        self.incident_counter_label = ttk.Label(self.loading_win, text="", font=("Helvetica", 9)); self.incident_counter_label.pack(pady=2)
     def _update_progress(self, current, total, status_text):
         if self.loading_win and self.loading_win.winfo_exists():
             progress = int((current / total) * 100) if total > 0 else 0; self.loading_win.lift()
             if current < total: self.loading_label.config(text=f"Lese Datei: {status_text} ({current}/{total})")
             else: self.loading_label.config(text=f"Status: {status_text}")
             self.loading_progress_bar['value'] = progress; self.percent_label.config(text=f"{progress}%"); self.loading_win.update_idletasks()
+    def _update_incident_progress(self, current, total):
+        if self.loading_win and self.loading_win.winfo_exists():
+            self.incident_counter_label.config(text=f"Fall {current} von {total} analysiert...")
+            self.loading_win.update_idletasks()
