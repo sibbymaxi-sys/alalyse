@@ -12,7 +12,7 @@ class FTPDialogGateView(tk.Toplevel):
         self.result = None
         self.log_targets = ["scanner_bag.log", "OMS.log"]
         self.path_entries = {}
-        self.config = cfg.load_profiles()
+        self.config = cfg.load_config()
         self.profiles = self.config.get("ftp_profiles_gateview", {})
 
         self._setup_widgets()

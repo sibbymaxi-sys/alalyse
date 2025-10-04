@@ -5,22 +5,33 @@ import pandas as pd
 import threading
 import os
 import re
+import sys
 from datetime import datetime
-import sv_ttk
-from tkcalendar import DateEntry
-from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.enums import TA_LEFT
-from log_parser import parse_log_file
-from data_processor import consolidate_journeys
-from advanced_search_dialog import AdvancedSearchDialog
-from base_app import BaseApp
-import config_manager as cfg
-from ftp_dialog_gateview import FTPDialogGateView
-from ftp_client import SFTPClient
-from sftp_status_window import SFTPStatusWindow
-from help_texts import GATEVIEW_HELP_TEXT
+import traceback
+import multiprocessing
+import subprocess
+
+try:
+    import sv_ttk
+    from tkcalendar import DateEntry
+    from log_parser import parse_log_file
+    from data_processor import consolidate_journeys
+    from advanced_search_dialog import AdvancedSearchDialog
+    from base_app import BaseApp
+    import config_manager as cfg
+    from ftp_dialog_advanced import AdvancedFTPDialog
+    from ftp_client import SFTPClient
+    from sftp_log_window import SFTPLogWindow
+    from help_texts import GATEVIEW_HELP_TEXT
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.enums import TA_LEFT
+except ImportError as e:
+    with open("gateview_crash_report.log", "w", encoding='utf-8') as f:
+        f.write(f"Ein kritischer Import-Fehler ist aufgetreten:\n\nDie Datei '{e.name}.py' oder die Bibliothek '{e.name}' konnte nicht gefunden werden.\n\n")
+        f.write(traceback.format_exc())
+    sys.exit(1)
 
 class GateViewApp(BaseApp):
     def __init__(self, parent, *args, **kwargs):
@@ -30,64 +41,105 @@ class GateViewApp(BaseApp):
         self.loading_win = None
         self._setup_ui()
 
-    def _show_help_window(self):
-        """ Zeigt das Hilfe-Fenster für den GateView Analyzer an. """
-        help_win = tk.Toplevel(self); help_win.title("Anleitung - GateView Analyzer"); help_win.geometry("800x600")
-        help_win.transient(self); help_win.grab_set()
-        
-        text_area = scrolledtext.ScrolledText(help_win, wrap=tk.WORD, font=("Helvetica", 10), padx=10, pady=10)
-        text_area.pack(expand=True, fill=tk.BOTH)
-        
-        text_area.insert(tk.INSERT, GATEVIEW_HELP_TEXT)
-        text_area.config(state="disabled")
-    
-    # ... (Rest der Datei bleibt unverändert)
     def _setup_ui(self):
-        main_frame = ttk.Frame(self, padding="10"); main_frame.pack(fill=tk.BOTH, expand=True); button_frame = ttk.Frame(main_frame); button_frame.pack(fill=tk.X, pady=5); ttk.Button(button_frame, text="1. Scanner-Log öffnen", command=lambda: self._load_from_dialog(mode="scanner")).pack(side=tk.LEFT, padx=5); self.oms_button = ttk.Button(button_frame, text="2. OMS-Log hinzufügen", command=lambda: self._load_from_dialog(mode="oms"), state="disabled"); self.oms_button.pack(side=tk.LEFT, padx=5); self.search_button = ttk.Button(button_frame, text="Erweiterte Suche", command=self._open_advanced_search); self.search_button.pack(side=tk.LEFT, padx=5); filter_frame = ttk.Frame(main_frame, padding=(0, 5)); filter_frame.pack(fill=tk.X, pady=(10,0)); ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT, padx=(0, 5)); ttk.Label(filter_frame, text="BagID:").pack(side=tk.LEFT, padx=(10, 5)); self.bag_id_filter = ttk.Combobox(filter_frame, width=15); self.bag_id_filter.pack(side=tk.LEFT); ttk.Label(filter_frame, text="IATA:").pack(side=tk.LEFT, padx=(10, 5)); self.iata_filter = ttk.Combobox(filter_frame, width=10); self.iata_filter.pack(side=tk.LEFT); self.iata_filter.bind("<<ComboboxSelected>>", self._apply_filters); ttk.Button(filter_frame, text="Anwenden", command=self._apply_filters).pack(side=tk.LEFT, padx=5); ttk.Button(filter_frame, text="Zurücksetzen", command=self._reset_filters).pack(side=tk.LEFT, padx=5); tree_frame = ttk.Frame(main_frame); tree_frame.pack(fill=tk.BOTH, expand=True, pady=(5,0)); self.tree = ttk.Treeview(tree_frame); scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True); self.tree.bind("<Double-1>", self._on_item_double_click); status_frame = ttk.Frame(main_frame); status_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=5); self.status_label = ttk.Label(status_frame, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
+        main_frame = ttk.Frame(self, padding="10"); main_frame.pack(fill=tk.BOTH, expand=True)
+        button_frame = ttk.Frame(main_frame); button_frame.pack(fill=tk.X, pady=5)
+        ttk.Button(button_frame, text="1. Scanner-Log öffnen", command=lambda: self._load_from_dialog(mode="scanner")).pack(side=tk.LEFT, padx=5)
+        self.oms_button = ttk.Button(button_frame, text="2. OMS-Log hinzufügen", command=lambda: self._load_from_dialog(mode="oms"), state="disabled"); self.oms_button.pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="BRAVA TRS Logs laden", command=self._run_brava_trs_download, style='Accent.TButton').pack(side=tk.LEFT, padx=15)
+        ttk.Button(button_frame, text="System-Analyse", command=self._launch_system_analyzer).pack(side=tk.LEFT, padx=15)
+        self.search_button = ttk.Button(button_frame, text="Erweiterte Suche", command=self._open_advanced_search); self.search_button.pack(side=tk.LEFT, padx=5)
+        
+        filter_frame = ttk.Frame(main_frame, padding=(0, 5)); filter_frame.pack(fill=tk.X, pady=(10,0))
+        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT, padx=(0, 5)); ttk.Label(filter_frame, text="BagID:").pack(side=tk.LEFT, padx=(10, 5)); self.bag_id_filter = ttk.Combobox(filter_frame, width=15); self.bag_id_filter.pack(side=tk.LEFT); ttk.Label(filter_frame, text="IATA:").pack(side=tk.LEFT, padx=(10, 5)); self.iata_filter = ttk.Combobox(filter_frame, width=10); self.iata_filter.pack(side=tk.LEFT); self.iata_filter.bind("<<ComboboxSelected>>", self._apply_filters); ttk.Button(filter_frame, text="Anwenden", command=self._apply_filters).pack(side=tk.LEFT, padx=5); ttk.Button(filter_frame, text="Zurücksetzen", command=self._reset_filters).pack(side=tk.LEFT, padx=5)
+        tree_frame = ttk.Frame(main_frame); tree_frame.pack(fill=tk.BOTH, expand=True, pady=(5,0))
+        self.tree = ttk.Treeview(tree_frame); scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True); self.tree.bind("<Double-1>", self._on_item_double_click)
+        self.status_label = ttk.Label(self.status_bar, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
+
+    def _launch_system_analyzer(self):
+        """Startet die system_analyzer_app.py als separaten, unabhängigen Prozess."""
+        script_path = 'system_analyzer_app.py'
+        if not os.path.exists(script_path):
+            messagebox.showerror("Fehler", f"Die Datei '{script_path}' wurde nicht gefunden.", parent=self)
+            return
+        python_exe = sys.executable
+        subprocess.Popen([python_exe, script_path])
+
+    def _show_help_window(self):
+        help_win = tk.Toplevel(self); help_win.title("Anleitung - GateView Analyzer"); help_win.geometry("800x600"); help_win.transient(self); help_win.grab_set()
+        text_area = scrolledtext.ScrolledText(help_win, wrap=tk.WORD, font=("Helvetica", 10), padx=10, pady=10); text_area.pack(expand=True, fill=tk.BOTH)
+        text_area.insert(tk.INSERT, GATEVIEW_HELP_TEXT); text_area.config(state="disabled")
+
     def _open_ftp_dialog(self):
-        dialog = FTPDialogGateView(self); ftp_details = dialog.show()
+        dialog = AdvancedFTPDialog(self, app_name="gateview")
+        ftp_details = dialog.show()
         if ftp_details:
-            local_dir = os.path.join(os.getcwd(), "logs", "gateview"); status_win = SFTPStatusWindow(self)
-            def progress_callback(message, progress=None):
-                self.after(0, status_win.update_status, message, progress)
-            thread = threading.Thread(target=self._run_sftp_download, args=(ftp_details, local_dir, progress_callback, status_win), daemon=True); thread.start()
-    def _run_sftp_download(self, details, local_dir, progress_callback, status_win):
-        client = SFTPClient(details["host"], details["user"], details["passwd"])
-        message, success = client.connect(progress_callback)
-        if success:
-            remote_files = [path for path in details["remote_paths"].values() if path]; total_files = len(remote_files); downloaded_so_far = 0
-            def download_wrapper_callback(msg):
-                nonlocal downloaded_so_far
-                if "Lade herunter" in msg:
-                    downloaded_so_far += 1; progress = int((downloaded_so_far / total_files) * 100); progress_callback(msg, progress)
+            log_win = SFTPLogWindow(self)
+            thread = threading.Thread(target=self._run_sftp_download, args=(ftp_details, log_win), daemon=True)
+            thread.start()
+
+    def _run_sftp_download(self, profile, log_win):
+        local_dir = os.path.join(os.getcwd(), "logs", "gateview_download")
+        os.makedirs(local_dir, exist_ok=True)
+        targets = profile.get("targets", {})
+        all_downloaded_files = []; has_errors = False
+        def log_callback(message): self.after(0, log_win.log, message)
+        for system_name, details in targets.items():
+            host = details.get("host")
+            if not host: continue
+            log_callback(f"--- Starte Verbindung zu {system_name} ({host}) ---")
+            self.after(0, self.set_connection_status, "connected")
+            client = SFTPClient(host, details.get("user"), details.get("passwd"), details.get("port", "22"))
+            message, success = client.connect(log_callback)
+            if success:
+                log_callback(f"Erfolgreich mit {system_name} verbunden.")
+                remote_paths = details.get("paths", [])
+                remote_dir = remote_paths[0] if remote_paths else ""
+                message, downloaded = client.download_all_files_from_dir(remote_dir, local_dir, log_callback)
+                if not downloaded:
+                    has_errors = True; log_callback(f"FEHLER beim Download von {system_name}: {message}"); self.after(0, self.set_connection_status, "error")
                 else:
-                    progress_callback(msg)
-            message, downloaded_files = client.download_files(remote_files, local_dir, download_wrapper_callback)
-            if not downloaded_files:
-                self.after(0, lambda: messagebox.showerror("SFTP Fehler", message, parent=self))
+                    all_downloaded_files.extend(downloaded); log_callback(f"Erfolgreich {len(downloaded)} Datei(en) von {system_name} heruntergeladen.")
             else:
-                self.after(0, self.on_ftp_download_complete, downloaded_files)
-        else:
-             self.after(0, lambda: messagebox.showerror("SFTP Fehler", message, parent=self))
-        client.disconnect(); self.after(0, status_win.close_window)
+                has_errors = True; log_callback(f"FEHLER bei der Verbindung zu {system_name}: {message}"); self.after(0, self.set_connection_status, "error")
+            log_callback(f"--- Trenne Verbindung zu {system_name} ---"); client.disconnect(); self.after(0, self.set_connection_status, "disconnected")
+        if not all_downloaded_files and has_errors: log_callback("Download-Prozess mit Fehlern abgeschlossen.")
+        elif all_downloaded_files: log_callback(f"Download abgeschlossen. Starte Analyse..."); self.after(0, self.on_ftp_download_complete, all_downloaded_files)
+        else: log_callback("Keine Dateien zum Herunterladen gefunden.")
+        self.after(3000, log_win.close_window)
+
+    def _run_brava_trs_download(self):
+        config = cfg.load_config()
+        profile = config.get("ftp_profiles", {}).get("BRAVA TRS")
+        if not profile:
+            messagebox.showwarning("Kein Profil", "Kein 'BRAVA TRS' Profil in der Konfiguration gefunden.", parent=self)
+            return
+        log_win = SFTPLogWindow(self)
+        thread = threading.Thread(target=self._run_sftp_download, args=(profile, log_win), daemon=True)
+        thread.start()
+
     def on_ftp_download_complete(self, downloaded_files):
         messagebox.showinfo("Download Abgeschlossen", f"{len(downloaded_files)} Datei(en) heruntergeladen.\nAnalyse wird gestartet.", parent=self)
         self.raw_df = pd.DataFrame(); self._start_loading_process(downloaded_files)
+
     def _start_loading_process(self, file_paths):
         self._create_loading_window()
         thread = threading.Thread(target=self._load_and_process_files, args=(file_paths,), daemon=True); thread.start()
         self.after(100, self._check_thread, thread)
+
     def _load_from_dialog(self, mode):
-        config = cfg.load_profiles()
+        config = cfg.load_config()
         last_dir = config.get("last_gateview_dir", os.getcwd())
         file_path = filedialog.askopenfilename(title=f"{mode.upper()}-Log auswählen", initialdir=last_dir, filetypes=(("Logdateien", "*.log"), ("Alle Dateien", "*.*")))
         if not file_path: return
-        config["last_gateview_dir"] = os.path.dirname(file_path); cfg.save_profiles(config)
+        config["last_gateview_dir"] = os.path.dirname(file_path); cfg.save_config(config)
         if mode == "scanner": self.raw_df = pd.DataFrame()
         self._start_loading_process([file_path])
+
     def _open_advanced_search(self):
         dialog = AdvancedSearchDialog(self); criteria = dialog.show()
         if criteria: self._perform_advanced_search(criteria)
+
     def _perform_advanced_search(self, criteria):
         df = self.journeys_df.copy()
         if criteria['bag_id']: df = df[df['BagID'].str.contains(criteria['bag_id'], case=False, na=False)]
@@ -108,28 +160,36 @@ class GateViewApp(BaseApp):
             df = df[df['BagID'].isin(oms_bag_ids)]
         self._update_treeview(df)
         self.status_label.config(text=f"{len(df)} Einträge nach erweiterter Suche gefunden.")
+
     def _create_loading_window(self):
         self.loading_win = tk.Toplevel(self); self.loading_win.title("Ladevorgang"); self.loading_win.geometry("450x130"); self.loading_win.resizable(False, False); self.update_idletasks(); x = self.winfo_screenwidth() // 2 - self.loading_win.winfo_width() // 2; y = self.winfo_screenheight() // 2 - self.loading_win.winfo_height() // 2; self.loading_win.geometry(f"+{x}+{y}"); self.loading_win.transient(self); self.loading_win.grab_set(); self.loading_label = ttk.Label(self.loading_win, text="Initialisiere...", font=("Helvetica", 10)); self.loading_label.pack(pady=(15, 5), padx=10, anchor="w"); self.loading_progress_bar = ttk.Progressbar(self.loading_win, orient="horizontal", mode="determinate"); self.loading_progress_bar.pack(fill=tk.X, expand=True, padx=10); self.percent_label = ttk.Label(self.loading_win, text="0%", font=("Helvetica", 10)); self.percent_label.pack(pady=5)
+
     def _update_progress(self, progress, filename):
         if self.loading_win: self.loading_win.lift(); self.loading_label.config(text=f"Verarbeite: {filename}"); self.loading_progress_bar['value'] = progress; self.percent_label.config(text=f"{progress}%"); self.loading_win.update_idletasks()
+
     def _check_thread(self, thread):
         if thread.is_alive(): self.after(100, self._check_thread, thread)
         else: self.after(100, self._finalize_loading)
+
     def _load_and_process_files(self, file_paths):
         for file_path in file_paths:
             new_df = parse_log_file(file_path, lambda p, f: self.after(0, self._update_progress, p, f))
             self.raw_df = pd.concat([self.raw_df, new_df]).drop_duplicates().sort_values(by="Timestamp").reset_index(drop=True)
         self.journeys_df = consolidate_journeys(self.raw_df)
         self.after(0, lambda: self.oms_button.config(state="normal"))
+
     def _finalize_loading(self):
         if self.loading_win: self.loading_win.destroy(); self.loading_win = None
         self._update_gui_after_load()
+
     def _update_gui_after_load(self):
         self._populate_filters(); self._reset_filters()
         self.status_label.config(text=f"{len(self.journeys_df)} Gepäck-Durchläufe gefunden.")
         messagebox.showinfo("Erfolg", f"Analyse abgeschlossen. {len(self.journeys_df)} einzigartige Gepäck-Durchläufe gefunden.")
+
     def _populate_filters(self):
         if not self.journeys_df.empty: self.bag_id_filter['values'] = sorted(self.journeys_df['BagID'].unique()); self.iata_filter['values'] = sorted(self.journeys_df['IATA'].unique())
+
     def _apply_filters(self, event=None):
         df_to_show = self.journeys_df.copy(); bag_id = self.bag_id_filter.get(); iata = self.iata_filter.get()
         if bag_id: df_to_show = df_to_show[df_to_show['BagID'] == bag_id]
@@ -138,30 +198,39 @@ class GateViewApp(BaseApp):
             if len(matching_journeys) > 1: self._show_iata_selection_window(matching_journeys)
             else: df_to_show = matching_journeys
         self._update_treeview(df_to_show)
+
     def _reset_filters(self):
         self.bag_id_filter.set(''); self.iata_filter.set(''); self._update_treeview(self.journeys_df)
+
     def _update_treeview(self, df):
         for i in self.tree.get_children(): self.tree.delete(i)
         self.tree["columns"] = list(df.columns); self.tree["show"] = "headings"
         for col in df.columns: self.tree.heading(col, text=col)
         self.tree.column("Operator", anchor='center')
         for index, row in df.iterrows(): self.tree.insert("", "end", values=list(row), iid=index)
+
     def _on_item_double_click(self, event):
         item_id = self.tree.identify_row(event.y)
         if not item_id: return
         row_index = int(item_id); selected_journey = self.journeys_df.loc[row_index]; bag_id_to_find = selected_journey['BagID']
         self._show_bag_history_window(bag_id_to_find)
+
     def _show_iata_selection_window(self, journeys_df):
         win = tk.Toplevel(self); win.title("Mehrere Durchläufe gefunden"); win.geometry("500x300"); win.transient(self); win.grab_set(); ttk.Label(win, text="Diese IATA wurde mehrfach verwendet...").pack(pady=10, padx=10); cols = ["Timestamp", "BagID", "End-Status", "Operator"]; tree = ttk.Treeview(win, columns=cols, show="headings");
         for col in cols: tree.heading(col, text=col)
         for index, row in journeys_df.iterrows(): tree.insert("", "end", values=[row[c] for c in cols], iid=index)
         tree.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
-        def on_select(): item = tree.focus(); 
-        if not item: messagebox.showwarning("Keine Auswahl", "Bitte wählen Sie einen Eintrag.", parent=win); return
-        self._update_treeview(self.journeys_df.loc[[int(item)]]); win.iconify()
+        def on_select(): 
+            item = tree.focus()
+            if not item: 
+                messagebox.showwarning("Keine Auswahl", "Bitte wählen Sie einen Eintrag.", parent=win)
+                return
+            self._update_treeview(self.journeys_df.loc[[int(item)]])
+            win.iconify()
         ttk.Button(win, text="Ausgewählten Durchlauf anzeigen", command=on_select).pack(pady=10)
+
     def _extract_routing_info(self, history_df):
-        info = {'iata': 'N/A', 'machine_decision': 'N/A', 'operator_decision': 'N/A', 'final_command': 'N/A'}; 
+        info = {'iata': 'N/A', 'machine_decision': 'N/A', 'operator_decision': 'N/A', 'final_command': 'N/A'}
         if history_df.empty: return info
         valid_iatas = history_df['IATA'][(history_df['IATA'] != 'N/A') & (history_df['IATA'] != 'NO_READ')]
         if not valid_iatas.empty: info['iata'] = valid_iatas.iloc[0]
@@ -178,6 +247,7 @@ class GateViewApp(BaseApp):
             match = re.search(r"gesendet: (.+)", final_cmd_df.iloc[-1]['Klartext'])
             if match: info['final_command'] = match.group(1).replace("**", "")
         return info
+
     def _show_bag_history_window(self, bag_id):
         win = tk.Toplevel(self); win.title(f"Detail-Analyse für BagID: {bag_id}"); win.geometry("1100x800")
         history_df = self.raw_df[self.raw_df['BagID'] == bag_id].sort_values(by="Timestamp")
@@ -206,6 +276,7 @@ class GateViewApp(BaseApp):
             for txt in [text1, text2, text3]: txt.insert(tk.END, msg)
         for txt in [text1, text2, text3]: txt.config(state=tk.DISABLED)
         ttk.Button(win, text="Analyse speichern...", command=lambda: self._save_analysis(bag_id, routing_info['iata'], export_content)).pack(pady=10)
+
     def _build_export_content(self, history_df, bag_id, routing_info):
         if history_df.empty: return f"Keine Detail-Einträge für BagID {bag_id} gefunden."
         content_parts = [f"ANALYSE-REPORT FÜR BAGID {bag_id} (WANNE: {routing_info['iata']})", f"Erstellt am: {datetime.now().strftime('%d.%m.%Y um %H:%M:%S Uhr')}", "="*60, "\n--- ROUTING-ANALYSE ---", f"IATA: {routing_info['iata']}", f"Maschinen-Entscheid: {routing_info['machine_decision']}", f"Operator-Entscheid: {routing_info['operator_decision']}", f"Finaler Befehl an PLC: {routing_info['final_command']}\n", "--- KLARTEXT-ANALYSE (BAGID-BEZOGEN) ---"]
@@ -221,16 +292,19 @@ class GateViewApp(BaseApp):
             for _, row in oms_logs_df.iterrows(): content_parts.append(f"[{row['Timestamp'].strftime('%H:%M:%S.%f')[:-3]}] {row['OriginalLog']}")
         else: content_parts.append("Keine OMS-Logs für diesen Durchlauf gefunden.")
         return "\n".join(content_parts)
+
     def _save_analysis(self, bag_id, iata, content):
         file_path = filedialog.asksaveasfilename(initialfile=f"Analyse_{bag_id}_{iata}", defaultextension=".txt", filetypes=[("Textdateien", "*.txt"), ("PDF-Dokumente", "*.pdf"), ("Alle Dateien", "*.*")])
         if not file_path: return
         if file_path.lower().endswith(".pdf"): self._export_to_pdf(file_path, content)
         else: self._export_to_txt(file_path, content)
+
     def _export_to_txt(self, path, content):
         try:
             with open(path, 'w', encoding='utf-8') as f: f.write(content)
             messagebox.showinfo("Erfolg", f"Analyse erfolgreich gespeichert unter:\n{path}")
         except Exception as e: messagebox.showerror("Fehler", f"Datei konnte nicht gespeichert werden:\n{e}")
+
     def _export_to_pdf(self, path, content):
         try:
             doc = SimpleDocTemplate(path, pagesize=landscape(letter))
@@ -243,3 +317,14 @@ class GateViewApp(BaseApp):
             messagebox.showinfo("Erfolg", f"PDF erfolgreich gespeichert unter:\n{path}")
         except Exception as e:
             messagebox.showerror("Fehler beim PDF-Export", f"PDF konnte nicht erstellt werden:\n{e}")
+
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    try:
+        root = tk.Tk()
+        app = GateViewApp(root)
+        root.mainloop()
+    except Exception as e:
+        with open("gateview_crash_report.log", "w", encoding='utf-8') as f:
+            f.write("Ein kritischer Fehler ist in gateview_app.py aufgetreten:\n\n")
+            f.write(traceback.format_exc())

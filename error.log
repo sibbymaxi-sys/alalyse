@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V5\start.py", line 47, in <module>
+    main()
+    ~~~~^^
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V5\start.py", line 29, in main
+    with open('output.log', 'w') as out_log, open('error.log', 'w') as err_log:
+         ~~~~^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'output.log'

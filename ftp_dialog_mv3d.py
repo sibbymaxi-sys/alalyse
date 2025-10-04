@@ -13,7 +13,7 @@ class FTPDialogMV3D(tk.Toplevel):
         # Die Log-Ziele wurden an Ihre Struktur angepasst
         self.log_targets = ["SCC", "IAC", "DPP", "IRC"] 
         self.target_widgets = {}
-        self.config = cfg.load_profiles()
+        self.config = cfg.load_config()
         self.profiles = self.config.get("ftp_profiles_mv3d", {})
 
         self._setup_widgets()
@@ -90,7 +90,7 @@ class FTPDialogMV3D(tk.Toplevel):
         if new_name and new_name not in self.profiles:
             self.profiles[new_name] = {}
             self.config["ftp_profiles_mv3d"] = self.profiles
-            cfg.save_profiles(self.config)
+            cfg.save_config(self.config)
             self._load_profile_list(); self.profile_selector.set(new_name)
             self._load_profile_settings(new_name)
         elif new_name:
@@ -127,7 +127,7 @@ class FTPDialogMV3D(tk.Toplevel):
         
         self.profiles["__last_used"] = profile_name
         self.config["ftp_profiles_mv3d"] = self.profiles
-        cfg.save_profiles(self.config)
+        cfg.save_config(self.config)
         
         self.result = self.profiles[profile_name]
         self.destroy()

@@ -1,0 +1,137 @@
+{
+    "theme": "dark",
+    "ftp_profiles": {
+        "Standard MV3D": {
+            "targets": {
+                "SCC": {
+                    "host": "192.168.7.10",
+                    "port": "22",
+                    "user": "sds",
+                    "passwd": "IhrPasswort",
+                    "paths": [
+                        "/opt/eds/log/scs.log",
+                        "/opt/eds/log/bhs.log",
+                        "/opt/eds/log/plc.log",
+                        "/opt/eds/log/bms.log",
+                        "/opt/eds/log/fsm.log"
+                    ]
+                },
+                "DPP": {
+                    "host": "192.168.7.11",
+                    "port": "22",
+                    "user": "sds",
+                    "passwd": "IhrPasswort",
+                    "paths": [
+                        "/var/log/mv3d/dpp/current",
+                        "/var/log/mv3d/dcs/current",
+                        "/var/log/mv3d/gpuirc/current"
+                    ]
+                },
+                "IAC": {
+                    "host": "192.168.7.2",
+                    "port": "22",
+                    "user": "sds",
+                    "passwd": "IhrPasswort",
+                    "paths": [
+                        "/opt/eds/log/scanner_bag.log",
+                        "/opt/eds/log/iqtk.log",
+                        "/var/log/mv3d/imp/current"
+                    ]
+                }
+            }
+        },
+        "Standard GateView": {
+            "targets": {
+                "Scanner": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrScannerPasswort",
+                    "paths": [
+                        "/remote/path/to/scanner.log"
+                    ]
+                },
+                "OMS": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrOMSPasswort",
+                    "paths": [
+                        "/remote/path/to/oms.log"
+                    ]
+                },
+                "BRAVA TRS": {
+                    "host": "192.168.15.1",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "Diamond1234@",
+                    "paths": [
+                        "/mnt/data/hmi/qthmi/deploy/rts/LOGS/"
+                    ]
+                }
+            }
+        },
+        "BRAVA TRS": {
+            "targets": {
+                "Scanner": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrScannerPasswort",
+                    "paths": [
+                        "/remote/path/to/scanner.log"
+                    ]
+                },
+                "OMS": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrOMSPasswort",
+                    "paths": [
+                        "/remote/path/to/oms.log"
+                    ]
+                },
+                "BRAVA TRS": {
+                    "host": "192.168.15.1",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "Diamond1234@",
+                    "paths": [
+                        "/mnt/data/hmi/qthmi/deploy/rts/LOGS/"
+                    ]
+                }
+            }
+        },
+        "Standard CS LOG": {
+            "targets": {
+                "Scanner": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrScannerPasswort",
+                    "paths": [
+                        "9otjughdgfhgd"
+                    ]
+                },
+                "OMS": {
+                    "host": "",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "IhrOMSPasswort",
+                    "paths": [
+                        "/remote/path/to/oms.log"
+                    ]
+                },
+                "BRAVA TRS": {
+                    "host": "192.168.15.1",
+                    "port": "22",
+                    "user": "admin",
+                    "passwd": "Diamond1234@",
+                    "paths": [
+                        "/mnt/data/hmi/qthmi/deploy/rts/LOGS/"
+                    ]
+                }
+            }
+        }
+    }
+}

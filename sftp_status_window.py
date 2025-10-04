@@ -1,45 +1,39 @@
 # sftp_status_window.py
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk
 
 class SFTPStatusWindow(tk.Toplevel):
+    """
+    Ein kleines Fenster zur Anzeige des Live-Status von SFTP-Operationen.
+    """
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("SFTP Download-Status")
-        self.geometry("600x400")
+        self.title("SFTP Status")
+        self.geometry("450x130")
+        self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
 
-        main_frame = ttk.Frame(self, padding=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.status_label = ttk.Label(main_frame, text="Initialisiere...", font=("Helvetica", 10, "bold"))
-        self.status_label.pack(fill=tk.X, pady=5)
-
-        self.progress_bar = ttk.Progressbar(main_frame, orient="horizontal", mode="determinate")
-        self.progress_bar.pack(fill=tk.X, pady=5)
-
-        log_frame = ttk.LabelFrame(main_frame, text="Details", padding=10)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=15)
-        self.log_text.pack(fill=tk.BOTH, expand=True)
-        self.log_text.config(state="disabled")
-
-        # Verhindert, dass der Benutzer das Fenster schließt, während der Prozess läuft
-        self.protocol("WM_DELETE_WINDOW", lambda: None) 
+        # UI-Elemente
+        self.status_label = ttk.Label(self, text="Initialisiere Verbindung...", font=("Helvetica", 10))
+        self.status_label.pack(pady=(15, 5), padx=10, anchor="w")
+        
+        self.progress_bar = ttk.Progressbar(self, orient="horizontal", mode="determinate")
+        self.progress_bar.pack(fill=tk.X, expand=True, padx=10)
+        
+        self.percent_label = ttk.Label(self, text="0%", font=("Helvetica", 10))
+        self.percent_label.pack(pady=5)
 
     def update_status(self, message, progress=None):
-        """ Aktualisiert die UI-Elemente im Haupt-Thread. """
-        self.status_label.config(text=message)
-        if progress is not None:
-            self.progress_bar['value'] = progress
-        
-        self.log_text.config(state="normal")
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.config(state="disabled")
-        self.update_idletasks()
+        """Aktualisiert die angezeigte Nachricht und den Fortschrittsbalken."""
+        if self.winfo_exists():
+            self.status_label.config(text=message)
+            if progress is not None:
+                self.progress_bar['value'] = progress
+                self.percent_label.config(text=f"{progress}%")
+            self.update_idletasks()
 
     def close_window(self):
-        self.destroy()
+        """Schließt das Fenster sicher."""
+        if self.winfo_exists():
+            self.destroy()

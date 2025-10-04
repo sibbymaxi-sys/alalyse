@@ -1,37 +1,9 @@
 @echo off
-SETLOCAL
+:: Wechselt in das Verzeichnis, in dem die .bat-Datei liegt
+cd /d "%~dp0"
 
-ECHO ----------------------------------------------------
-ECHO  Ueberpruefe und installiere notwendige Bibliotheken
-ECHO ----------------------------------------------------
+echo Starting Application (window will minimize)...
 
-REM Pruefe, ob die 'py' oder 'python' Befehle funktionieren
-py --version >NUL 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    ECHO Der 'py' Befehl wurde nicht gefunden. Versuche 'python' stattdessen.
-    python --version >NUL 2>&1
-    IF %ERRORLEVEL% NEQ 0 (
-        ECHO Kritischer Fehler: Weder 'py' noch 'python' ist im Systempfad.
-        ECHO Bitte stellen Sie sicher, dass Python korrekt installiert ist und zum PATH hinzugefuegt wurde.
-        ECHO Moeglicherweise muessen Sie Python neu installieren und die Option 'Add Python to PATH' waehlen.
-        pause
-        ENDLOCAL
-        EXIT /B 1
-    )
-)
-
-ECHO Erstelle und aktiviere virtuelle Umgebung...
-IF NOT EXIST .venv (
-  py -3 -m venv .venv
-)
-
-CALL .venv\Scripts\activate
-
-ECHO Installiere Python-Abhaengigkeiten aus requirements.txt...
-pip install -r requirements.txt
-
-ECHO Starte den GateView Log Analyzer...
-python main_app.py
-
-ENDLOCAL
-pause
+:: Der 'start "Titel" /min' Befehl startet das Python-Skript in einem neuen, minimierten Fenster.
+:: Der erste Parameter in Anführungszeichen ist ein Fenstertitel und wird benötigt.
+start "MV3D GateView Analyzer" /min "C:\Users\opper\AppData\Local\Programs\Python\Python313\python.exe" start.py

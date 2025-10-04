@@ -1,0 +1,42 @@
+Die bessere, professionelle Lösung: Eine zweite IP-Adresse manuell hinzufügen
+Der Standardweg in der Industrie und IT für genau diesen Fall ist, Ihrem Computer zusätzlich zu seiner normalen IP-Adresse eine zweite, feste IP-Adresse im Maschinen-Netzwerk zu geben.
+
+Ihr Computer kann dann mit beiden Netzwerken gleichzeitig kommunizieren, ohne dass etwas umgeschaltet werden muss. Dies müssen Sie nur ein einziges Mal einrichten.
+
+Schritt-für-Schritt-Anleitung (für Windows)
+Öffnen Sie die Netzwerkverbindungen:
+
+Drücken Sie die Windows-Taste + R, geben Sie ncpa.cpl ein und drücken Sie Enter.
+
+Adapter-Einstellungen öffnen:
+
+Machen Sie einen Rechtsklick auf Ihren Netzwerkadapter (meist "Ethernet" oder "LAN") und wählen Sie Eigenschaften.
+
+TCP/IPv4-Einstellungen:
+
+Wählen Sie "Internetprotokoll, Version 4 (TCP/IPv4)" aus der Liste aus und klicken Sie auf Eigenschaften.
+
+Erweiterte Einstellungen:
+
+Klicken Sie auf den Button "Erweitert...".
+
+Zusätzliche IP-Adresse hinzufügen:
+
+Im Tab "IP-Einstellungen" unter dem Abschnitt "IP-Adressen" klicken Sie auf "Hinzufügen...".
+
+Geben Sie eine freie IP-Adresse aus dem Maschinen-Netzwerk ein. Da Ihre Server im 192.168.7.x-Netz sind, nehmen Sie zum Beispiel:
+
+IP-Adresse: 192.168.7.100
+
+Subnetzmaske: 255.255.255.0
+
+Klicken Sie auf "Hinzufügen" und schließen Sie alle Fenster mit "OK".
+
+Die Vorteile dieser Methode
+Sicher: Ihre normale Internet- und Netzwerkverbindung bleibt unberührt.
+
+Permanent: Sie müssen dies nur einmal einrichten.
+
+Zuverlässig: Ihr Computer ist jetzt permanent in beiden Netzwerken erreichbar. Ihr Analyse-Programm benötigt keine speziellen Rechte oder riskante Funktionen mehr.
+
+Ich empfehle Ihnen dringend, diesen manuellen Weg zu gehen. Es ist die saubere, stabile und professionelle Lösung.
