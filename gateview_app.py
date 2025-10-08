@@ -27,6 +27,7 @@ try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.enums import TA_LEFT
+    from system_analyzer_app import SystemAnalyzerApp  # <-- Neu hinzugefügt
 except ImportError as e:
     with open("gateview_crash_report.log", "w", encoding='utf-8') as f:
         f.write(f"Ein kritischer Import-Fehler ist aufgetreten:\n\nDie Datei '{e.name}.py' oder die Bibliothek '{e.name}' konnte nicht gefunden werden.\n\n")
@@ -35,7 +36,7 @@ except ImportError as e:
 
 class GateViewApp(BaseApp):
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, app_name="GateView Analyzer", version="7.23 (Final)", *args, **kwargs)
+        super().__init__(parent, app_name="GateView Analyzer", version="1.0", *args, **kwargs)
         self.raw_df = pd.DataFrame()
         self.journeys_df = pd.DataFrame()
         self.loading_win = None
@@ -57,14 +58,18 @@ class GateViewApp(BaseApp):
         self.status_label = ttk.Label(self.status_bar, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
 
     def _launch_system_analyzer(self):
-        """Startet die system_analyzer_app.py als separaten, unabhängigen Prozess."""
-        script_path = 'system_analyzer_app.py'
-        if not os.path.exists(script_path):
-            messagebox.showerror("Fehler", f"Die Datei '{script_path}' wurde nicht gefunden.", parent=self)
-            return
-        python_exe = sys.executable
-        subprocess.Popen([python_exe, script_path])
+        """Startet die SystemAnalyzerApp in einem neuen Fenster."""
+        # Das Toplevel-Fenster für die neue App erstellen.
+        new_window = tk.Toplevel(self)
+        
+        # Den Titel und die Größe des Fensters festlegen.
+        new_window.title("Eigenständige System-Analyse (ClearScan)")
+        new_window.geometry("1100x700")
 
+        # Eine Instanz der SystemAnalyzerApp erstellen und im neuen Fenster ausführen.
+        SystemAnalyzerApp(new_window)
+        # Die neue App übernimmt nun die Kontrolle über dieses Fenster.
+    
     def _show_help_window(self):
         help_win = tk.Toplevel(self); help_win.title("Anleitung - GateView Analyzer"); help_win.geometry("800x600"); help_win.transient(self); help_win.grab_set()
         text_area = scrolledtext.ScrolledText(help_win, wrap=tk.WORD, font=("Helvetica", 10), padx=10, pady=10); text_area.pack(expand=True, fill=tk.BOTH)
@@ -214,20 +219,6 @@ class GateViewApp(BaseApp):
         if not item_id: return
         row_index = int(item_id); selected_journey = self.journeys_df.loc[row_index]; bag_id_to_find = selected_journey['BagID']
         self._show_bag_history_window(bag_id_to_find)
-
-    def _show_iata_selection_window(self, journeys_df):
-        win = tk.Toplevel(self); win.title("Mehrere Durchläufe gefunden"); win.geometry("500x300"); win.transient(self); win.grab_set(); ttk.Label(win, text="Diese IATA wurde mehrfach verwendet...").pack(pady=10, padx=10); cols = ["Timestamp", "BagID", "End-Status", "Operator"]; tree = ttk.Treeview(win, columns=cols, show="headings");
-        for col in cols: tree.heading(col, text=col)
-        for index, row in journeys_df.iterrows(): tree.insert("", "end", values=[row[c] for c in cols], iid=index)
-        tree.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
-        def on_select(): 
-            item = tree.focus()
-            if not item: 
-                messagebox.showwarning("Keine Auswahl", "Bitte wählen Sie einen Eintrag.", parent=win)
-                return
-            self._update_treeview(self.journeys_df.loc[[int(item)]])
-            win.iconify()
-        ttk.Button(win, text="Ausgewählten Durchlauf anzeigen", command=on_select).pack(pady=10)
 
     def _extract_routing_info(self, history_df):
         info = {'iata': 'N/A', 'machine_decision': 'N/A', 'operator_decision': 'N/A', 'final_command': 'N/A'}

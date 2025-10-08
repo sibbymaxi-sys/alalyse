@@ -1,48 +1,55 @@
 # license_validator.py
-import base64
+
+import configparser
 from datetime import datetime
-import os
+import base64
 
-# NEU: Definiere den sicheren Speicherort
-APP_NAME = "MV3D_GateView_Analyzer"
-CONFIG_DIR = os.path.join(os.getenv('APPDATA'), APP_NAME)
-LICENSE_FILE = os.path.join(CONFIG_DIR, "license.key")
-
+# Ein einfacher "geheimer" Schlüssel zur Verschleierung.
+# Dieser muss mit dem in license_generator.py übereinstimmen.
 SECRET_KEY = "MySecretKeyForEncoding2025"
 
-def decode_key(license_key):
-    # ... (Diese Funktion bleibt gleich) ...
-    try:
-        decoded_bytes = base64.b64decode(license_key); decoded_str = decoded_bytes.decode('utf-8')
-        if f"|{SECRET_KEY}" in decoded_str: return decoded_str.split('|')[0]
-    except Exception: return None
-    return None
-
 def check_license():
-    if not os.path.exists(LICENSE_FILE):
-        return {"valid": False, "reason": "NO_FILE", "expires": None}
-    with open(LICENSE_FILE, 'r') as f:
-        license_key = f.read().strip()
-    expiration_date_str = decode_key(license_key)
-    if not expiration_date_str:
-        return {"valid": False, "reason": "INVALID_KEY", "expires": None}
-    if expiration_date_str == "9999-12-31":
-        return {"valid": True, "reason": "VALID", "expires": "Unbegrenzt"}
-    try:
-        expiration_date = datetime.strptime(expiration_date_str, '%Y-%m-%d')
-        if datetime.now() > expiration_date:
-            return {"valid": False, "reason": "EXPIRED", "expires": expiration_date_str}
-        else:
-            return {"valid": True, "reason": "VALID", "expires": expiration_date_str}
-    except ValueError:
-        return {"valid": False, "reason": "INVALID_DATE", "expires": None}
+    """
+    Prüft den Lizenzschlüssel in der config.ini und gibt Status und Ablaufdatum zurück.
+    
+    Rückgabe:
+        (bool, datetime.date oder None):
+            - True, falls die Lizenz gültig ist.
+            - False, falls die Lizenz ungültig oder nicht vorhanden ist.
+            - Das Ablaufdatum der Lizenz als datetime.date-Objekt.
+            - None, wenn der Schlüssel ungültig ist oder nicht existiert.
+    """
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    
+    license_key = config.get('License', 'Key', fallback=None)
+    
+    if not license_key:
+        return False, None
 
-def write_license_key(key):
     try:
-        # Stelle sicher, dass das Verzeichnis existiert
-        os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(LICENSE_FILE, 'w') as f:
-            f.write(key)
-        return True
+        # Dekodieren des Base64-Strings
+        decoded_bytes = base64.b64decode(license_key.encode('utf-8'))
+        decoded_str = decoded_bytes.decode('utf-8')
+
+        # Trennen des Datums und des Secret Key
+        expiration_date_str, key_check = decoded_str.split('|')
+
+        # Überprüfen, ob der Secret Key übereinstimmt, um Manipulation zu erkennen
+        if key_check != SECRET_KEY:
+            return False, None
+
+        # Überprüfen des Datums
+        expiration_date = datetime.strptime(expiration_date_str, '%Y-%m-%d')
+        
+        # Lizenz ist gültig, wenn das heutige Datum vor oder am Ablaufdatum liegt
+        if expiration_date.date() >= datetime.now().date():
+            # Rückgabe des Status und des Ablaufdatums
+            return True, expiration_date.date()
+        else:
+            # Lizenz ist abgelaufen
+            return False, expiration_date.date()
+
     except Exception:
-        return False
+        # Fängt alle Fehler ab, falls der Schlüssel ungültig ist
+        return False, None

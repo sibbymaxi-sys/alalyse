@@ -2,25 +2,37 @@
 #
 # Spec file for building the GateView application with PyInstaller.
 #
-# To use, run: pyinstaller --onefile GateView.spec
+# To use, run: pyinstaller GateView.spec
+
+import os
 
 block_cipher = None
 
 a = Analysis(
     ['start.py'],
-    pathex=['D:\\ClearScanAnalyzer\\neue_Vers\\ver3\\test_V5'],  # Pfad zu deinem Projektverzeichnis
+    pathex=['D:/ClearScanAnalyzer/neue_Vers/ver3/test_V5'],
     binaries=[],
     datas=[
-        # Füge die config.ini hinzu
-        ('config.ini', '.'),
-        # Füge die requirements.txt hinzu
+        ('C:/Users/opper/AppData/Local/Programs/Python/Python313/Lib/site-packages/sv_ttk', 'sv_ttk'),
         ('requirements.txt', '.'),
-        # Füge andere nicht-python Dateien hinzu, z.B. aus einem Ordner 'data'
-        # ('data/somefile.csv', 'data'),
+        ('config.ini', '.'),
+        # Manually add the tkinter library files
+        ('C:/Users/opper/AppData/Local/Programs/Python/Python313/tcl/tk8.6', 'tcl/tk8.6'),
     ],
     hiddenimports=[
-        # Füge alle Python-Module hinzu, die PyInstaller nicht automatisch findet.
-        "tkinter"
+        # Standard-Bibliotheken, die dynamisch geladen werden
+        'tkinter', 
+        'sv_ttk',
+        'traceback', 
+        'sys', 
+        'multiprocessing', 
+        'os', 
+        're', 
+        'datetime',
+        'pandas',
+        'shutil',
+
+        # Modules aus deinem Projekt, die nicht direkt von start.py importiert werden
         "advanced_search_dialog", 
         "analysis_engine", 
         "base_app",
@@ -67,11 +79,19 @@ a = Analysis(
         "sftp_status_window", 
         "system_analyzer_app", 
         "test_license_system", 
-        "timespan_dialog"
+        "timespan_dialog",
+        "reportlab",
+        "numpy",
+        "tkcalendar",
+        "reportlab.lib.pagesizes",
+        "reportlab.platypus",
+        "reportlab.lib.styles",
+        "reportlab.lib.enums",
     ],
     hookspath=[],
     runtime_hooks=[],
-        win_no_prefer_redirects=False,
+    excludes=[],
+    win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
@@ -79,7 +99,6 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
 
-# Füge die notwendigen Dateien hinzu, um die .exe auszuführen
 exe = EXE(
     pyz,
     a.scripts,
@@ -92,8 +111,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    # This is the line that makes it a single file
-    onefile=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

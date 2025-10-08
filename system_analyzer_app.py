@@ -12,16 +12,27 @@ import multiprocessing
 from datetime import datetime, timedelta
 import shutil
 
+# Importiere deine lokalen Module
 from gateview_casefile_window import GateViewCasefileWindow
+# Stelle sicher, dass alle anderen benötigten Module hier importiert werden
+# Beispiel: from ftp_client import SFTPClient
+# ...
 
-class SystemAnalyzerApp(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("Eigenständige System-Analyse (ClearScan)")
-        self.geometry("1100x700")
-        sv_ttk.set_theme("dark")
+class SystemAnalyzerApp:
+    def __init__(self, parent):
+        self.parent = parent
+        
+        self.parent.title("Eigenständige System-Analyse (ClearScan)")
+        self.parent.geometry("1100x700")
+        
+        # Sicherer Import und Anwendung des sv_ttk-Themas
+        try:
+            import sv_ttk
+            sv_ttk.set_theme("dark")
+        except Exception:
+            pass # Standard-Theme verwenden, wenn sv_ttk fehlschlägt
 
-        style = ttk.Style(self)
+        style = ttk.Style(self.parent)
         style.map('Treeview', background=[('selected', '#343434')], foreground=[('selected', 'white')])
 
         self.raw_df = pd.DataFrame()
@@ -30,12 +41,13 @@ class SystemAnalyzerApp(tk.Tk):
         self._setup_ui()
 
     def _setup_ui(self):
-        main_frame = ttk.Frame(self, padding="10")
+        main_frame = ttk.Frame(self.parent, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(control_frame, text="Log-Ordner zur Analyse auswählen", command=self._start_analysis).pack(side=tk.LEFT, padx=5, pady=5)
+        
+        ttk.Button(control_frame, text="Log-Ordner zur Analyse auswählen", command=self._start_analysis_from_dialog).pack(side=tk.LEFT, padx=5, pady=5)
         
         ttk.Label(control_frame, text="Nach Datum filtern:").pack(side=tk.LEFT, padx=(20, 5))
         self.date_filter_combo = ttk.Combobox(control_frame, state="readonly", width=15)
@@ -51,14 +63,14 @@ class SystemAnalyzerApp(tk.Tk):
         self.tree.heading("Error", text="Fehlermeldung"); self.tree.column("Error", width=700)
         self.tree.bind("<Double-1>", self._on_item_select)
         
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(fill=tk.BOTH, expand=True)
+        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.tree.tag_configure("error", background="#4B2525")
         self.tree.tag_configure("restart", foreground="#6495ED")
         
-        status_bar = ttk.Frame(self, padding=(5, 2)); status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        status_bar = ttk.Frame(self.parent, padding=(5, 2)); status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         self.status_label = ttk.Label(status_bar, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
-
-    def _start_analysis(self):
+    
+    def _start_analysis_from_dialog(self):
         dir_path = filedialog.askdirectory(title="Wählen Sie den Log-Ordner zur System-Analyse")
         if not dir_path: return
         self._create_loading_window()
@@ -66,10 +78,9 @@ class SystemAnalyzerApp(tk.Tk):
         thread.start()
 
     def _run_analysis_thread(self, dir_path):
-        def progress_callback(progress, message): self.after(0, self._update_progress, progress, message)
+        def progress_callback(progress, message): self.parent.after(0, self._update_progress, progress, message)
         
         files_to_exclude = ['yum.log', 'oms.log', 'scanner_bag.log', 'app.log']
-        six_months_ago = datetime.now() - timedelta(days=180)
         log_files = []
         progress_callback(0, "Suche nach relevanten Log-Dateien...")
         
@@ -80,15 +91,10 @@ class SystemAnalyzerApp(tk.Tk):
                     continue
                 if filename_lower.endswith('.log'):
                     file_path = os.path.join(root, file)
-                    try:
-                        mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                        if mod_time > six_months_ago:
-                            log_files.append(file_path)
-                    except OSError:
-                        continue
+                    log_files.append(file_path)
         
         if not log_files:
-            self.after(0, self._finalize_analysis, False, "Keine relevanten .log-Dateien (jünger als 6 Monate) gefunden.")
+            self.parent.after(0, self._finalize_analysis, False, "Keine relevanten .log-Dateien gefunden.")
             return
             
         try:
@@ -99,55 +105,84 @@ class SystemAnalyzerApp(tk.Tk):
             for src_path in log_files: shutil.copy(src_path, dest_dir)
             progress_callback(0, f"{len(log_files)} Dateien nach '{dest_dir}' kopiert.")
         except Exception as e:
-            self.after(0, self._finalize_analysis, False, f"Fehler beim Kopieren der Dateien: {e}")
+            self.parent.after(0, self._finalize_analysis, False, f"Fehler beim Kopieren der Dateien: {e}")
             return
 
-        # --- KORREKTUR DER JAHRESZAHL-LOGIK ---
-        # Wir nehmen einfach das aktuelle Jahr als Referenz.
         year = str(datetime.now().year)
 
         all_entries = []
         for i, file_path in enumerate(log_files):
             filename = os.path.basename(file_path)
             progress_callback(int(((i + 1) / len(log_files)) * 100), f"Lese: {filename}")
+            
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     for line in f:
                         timestamp = self._parse_timestamp(line, year)
                         all_entries.append({'Timestamp': timestamp, 'SourceFile': filename, 'OriginalLog': line.strip()})
-            except Exception as e: print(f"Fehler beim Lesen der Datei {filename}: {e}")
-        
+            except Exception as e: 
+                print(f"FEHLER beim Lesen/Parsen der Datei {filename}: {e}")
+                
         if not all_entries:
-            self.after(0, self._finalize_analysis, False, "Keine lesbaren Einträge gefunden.")
+            self.parent.after(0, self._finalize_analysis, False, "Keine lesbaren Einträge gefunden.")
             return
             
         self.raw_df = pd.DataFrame(all_entries).sort_values(by="Timestamp", na_position='first').reset_index(drop=True)
         event_pattern = r"(?:ERROR|FAIL|FAULT|WARNING|Restarting Script)"
         error_mask = self.raw_df['OriginalLog'].str.contains(event_pattern, case=False, na=False)
         self.incidents_df = self.raw_df[error_mask].copy()
-        self.after(0, self._finalize_analysis, True, f"{len(self.incidents_df)} relevante Ereignisse gefunden.")
-
-    # --- ENTFERNT: Die komplexe _find_year_from_logs wurde gelöscht ---
+        self.parent.after(0, self._finalize_analysis, True, f"{len(self.incidents_df)} relevante Ereignisse gefunden.")
 
     def _parse_timestamp(self, line, year):
         """Versucht, verschiedene Datumsformate zu erkennen und zu parsen."""
-        match1 = re.search(r'(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[\.,]\d{3,})', line)
-        if match1: return pd.to_datetime(match1.group(1), errors='coerce')
-        match2 = re.search(r'(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})', line)
+        
+        # Format 1: 2025-10-07 17:42:00.123 (YYYY-MM-DD HH:MM:SS.ms)
+        match1 = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3})', line)
+        if match1:
+            try:
+                return pd.to_datetime(match1.group(1), errors='coerce')
+            except ValueError:
+                pass
+
+        # Format 2: Tue Oct 07 17:42:00.123 2025 (Wochentag Monat Tag HH:MM:SS.ms Jahr)
+        match2 = re.search(r'(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3}\s+\d{4})', line)
         if match2:
-            try: return datetime.strptime(f"{match2.group(1)} {year}", '%a %b %d %H:%M:%S %Y')
-            except ValueError: return None
+            try:
+                return datetime.strptime(match2.group(1), '%a %b %d %H:%M:%S.%f %Y')
+            except ValueError:
+                # Versuche es ohne Millisekunden
+                try:
+                    return datetime.strptime(match2.group(1), '%a %b %d %H:%M:%S %Y')
+                except ValueError:
+                    pass
+
+        # Format 3: Mon Jan 01 00:00:00.000 ohne Jahresangabe
+        match3 = re.search(r'(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3})', line)
+        if match3:
+            try:
+                return pd.to_datetime(f"{match3.group(1)} {year}", format='%a %b %d %H:%M:%S.%f %Y', errors='coerce')
+            except Exception:
+                pass
+
+        # Format 4: Logs mit MM-TT HH:MM:SS
+        match4 = re.search(r'(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
+        if match4:
+            try:
+                return pd.to_datetime(f"{year}-{match4.group(1)}", format='%Y-%m-%d %H:%M:%S', errors='coerce')
+            except Exception:
+                pass
+        
         return None
 
     def _finalize_analysis(self, success, message):
         if self.loading_win: self.loading_win.destroy(); self.loading_win = None
         if not success:
-            messagebox.showwarning("Analyse fehlgeschlagen", message, parent=self)
+            messagebox.showwarning("Analyse fehlgeschlagen", message, parent=self.parent)
             return
         self._update_treeview()
         self._populate_date_filter()
         self.status_label.config(text=message)
-        messagebox.showinfo("System-Analyse abgeschlossen", message, parent=self)
+        messagebox.showinfo("System-Analyse abgeschlossen", message, parent=self.parent)
 
     def _populate_date_filter(self):
         self.date_filter_combo.set('')
@@ -157,7 +192,6 @@ class SystemAnalyzerApp(tk.Tk):
         if not valid_dates.empty:
             unique_dates = sorted(valid_dates.dt.date.unique())
             self.date_filter_combo['values'] = [d.strftime('%Y-%m-%d') for d in unique_dates]
-
     def _on_date_filter_select(self, event=None):
         selected_date_str = self.date_filter_combo.get()
         if not selected_date_str: return
@@ -166,13 +200,13 @@ class SystemAnalyzerApp(tk.Tk):
         self._update_treeview(filtered_df)
 
     def _reset_date_filter(self):
-        self.date_filter_combo.set('')
-        self._update_treeview()
+        self.date_filter_combo.set(''); self._update_treeview()
 
     def _update_treeview(self, df=None):
         df_to_show = self.incidents_df if df is None else df
         for i in self.tree.get_children(): self.tree.delete(i)
-        error_pattern = r"(?:ERROR|FAIL|FAULT|WARNING)"; restart_pattern = r"Restarting Script"
+        error_pattern = r"(?:ERROR|FAIL|FAULT|WARNING|Restarting Script)"
+        restart_pattern = r"Restarting Script"
         for index, row in df_to_show.iterrows():
             tags = []; log_text = row['OriginalLog']
             if re.search(restart_pattern, log_text, re.IGNORECASE): tags.append("restart")
@@ -180,26 +214,14 @@ class SystemAnalyzerApp(tk.Tk):
             self.tree.insert("", "end", iid=index, tags=tuple(tags), values=(
                 row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S') if pd.notna(row['Timestamp']) else 'N/A', 
                 row['SourceFile'], log_text))
-
     def _on_item_select(self, event):
         selected_item = self.tree.focus()
         if not selected_item: return
         row_index = int(selected_item)
         selected_row = self.raw_df.loc[row_index]
-        GateViewCasefileWindow(self, selected_row, self.raw_df)
+        GateViewCasefileWindow(self.parent, selected_row, self.raw_df)
 
     def _create_loading_window(self):
-        self.loading_win = tk.Toplevel(self); self.loading_win.title("Ladevorgang"); self.loading_win.geometry("450x130"); self.loading_win.transient(self); self.loading_win.grab_set(); self.loading_label = ttk.Label(self.loading_win, text="Initialisiere...", font=("Helvetica", 10)); self.loading_label.pack(pady=(15, 5), padx=10, anchor="w"); self.loading_progress_bar = ttk.Progressbar(self.loading_win, orient="horizontal", mode="determinate"); self.loading_progress_bar.pack(fill=tk.X, expand=True, padx=10); self.percent_label = ttk.Label(self.loading_win, text="0%", font=("Helvetica", 10)); self.percent_label.pack(pady=5)
-
+        self.loading_win = tk.Toplevel(self.parent); self.loading_win.title("Ladevorgang"); self.loading_win.geometry("450x130"); self.loading_win.resizable(False, False); self.parent.update_idletasks(); x = self.parent.winfo_screenwidth() // 2 - self.loading_win.winfo_width() // 2; y = self.parent.winfo_screenheight() // 2 - self.loading_win.winfo_height() // 2; self.loading_win.geometry(f"+{x}+{y}"); self.loading_win.transient(self.parent); self.loading_win.grab_set(); self.loading_label = ttk.Label(self.loading_win, text="Initialisiere...", font=("Helvetica", 10)); self.loading_label.pack(pady=(15, 5), padx=10, anchor="w"); self.loading_progress_bar = ttk.Progressbar(self.loading_win, orient="horizontal", mode="determinate"); self.loading_progress_bar.pack(fill=tk.X, expand=True, padx=10); self.percent_label = ttk.Label(self.loading_win, text="0%", font=("Helvetica", 10)); self.percent_label.pack(pady=5)
     def _update_progress(self, progress, filename):
         if self.loading_win: self.loading_win.lift(); self.loading_label.config(text=f"Verarbeite: {filename}"); self.loading_progress_bar['value'] = progress; self.percent_label.config(text=f"{progress}%"); self.loading_win.update_idletasks()
-
-if __name__ == "__main__":
-    multiprocessing.freeze_support()
-    try:
-        app = SystemAnalyzerApp()
-        app.mainloop()
-    except Exception as e:
-        with open("system_analyzer_crash.log", "w", encoding='utf-8') as f:
-            f.write("Ein kritischer Fehler ist in system_analyzer_app.py aufgetreten:\n\n")
-            f.write(traceback.format_exc())
