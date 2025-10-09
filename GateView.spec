@@ -85,6 +85,7 @@ a = Analysis(
         "tkcalendar",
         "reportlab.lib.pagesizes",
         "reportlab.platypus",
+        "brava_log_parser",
         "reportlab.lib.styles",
         "reportlab.lib.enums",
     ],

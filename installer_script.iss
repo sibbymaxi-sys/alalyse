@@ -19,8 +19,6 @@ OutputDir=.\dist
 DefaultDirName={autopf}\GateView
 ; Standard-Name des Startmenü-Ordners.
 DefaultGroupName=GateView
-; Sichert, dass der Installer alle notwendigen Dateien überschreibt.
-AllowOverwriteFiles=yes
 ; Zeigt das 'Fertigstellen'-Fenster am Ende der Installation.
 CloseApplications=yes
 CloseApplicationsFilter=GateView.exe
@@ -28,13 +26,8 @@ DisableProgramGroupPage=yes
 ; Erstellt einen Uninstaller.
 UninstallDisplayIcon={app}\GateView.exe
 UninstallDisplayName=GateView deinstallieren
-; Fügt eine Beschreibung in der Systemsteuerung hinzu.
-InfoBeforeFile=.\InstallerInfo.txt
-LicenseFile=.\License.txt
 Compression=lzma
 SolidCompression=yes
-WizardImageFile=.\installer_wizard.bmp
-WizardSmallImageFile=.\installer_small.bmp
 PrivilegesRequired=admin
 
 [Tasks]

@@ -1,6 +1,5 @@
-# system_analyzer_app.py
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import threading
 import os
@@ -11,49 +10,51 @@ import sv_ttk
 import multiprocessing
 from datetime import datetime, timedelta
 import shutil
+from brava_log_parser import parse_log as parse_brava_log
 
-# Importiere deine lokalen Module
 from gateview_casefile_window import GateViewCasefileWindow
-# Stelle sicher, dass alle anderen benötigten Module hier importiert werden
-# Beispiel: from ftp_client import SFTPClient
-# ...
 
 class SystemAnalyzerApp:
     def __init__(self, parent):
         self.parent = parent
-        
+
         self.parent.title("Eigenständige System-Analyse (ClearScan)")
         self.parent.geometry("1100x700")
-        
+
         # Sicherer Import und Anwendung des sv_ttk-Themas
         try:
             import sv_ttk
             sv_ttk.set_theme("dark")
         except Exception:
-            pass # Standard-Theme verwenden, wenn sv_ttk fehlschlägt
+            pass
 
         style = ttk.Style(self.parent)
         style.map('Treeview', background=[('selected', '#343434')], foreground=[('selected', 'white')])
 
         self.raw_df = pd.DataFrame()
         self.incidents_df = pd.DataFrame()
+        self.scanner_df = pd.DataFrame()
+        self.oms_df = pd.DataFrame()
+        self.brava_df = pd.DataFrame()
         self.loading_win = None
         self._setup_ui()
 
     def _setup_ui(self):
         main_frame = ttk.Frame(self.parent, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=5)
-        
+
         ttk.Button(control_frame, text="Log-Ordner zur Analyse auswählen", command=self._start_analysis_from_dialog).pack(side=tk.LEFT, padx=5, pady=5)
-        
+
         ttk.Label(control_frame, text="Nach Datum filtern:").pack(side=tk.LEFT, padx=(20, 5))
         self.date_filter_combo = ttk.Combobox(control_frame, state="readonly", width=15)
         self.date_filter_combo.pack(side=tk.LEFT, padx=5)
         self.date_filter_combo.bind("<<ComboboxSelected>>", self._on_date_filter_select)
         ttk.Button(control_frame, text="Filter zurücksetzen", command=self._reset_date_filter).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(control_frame, text="BRAVA/PLC Log laden", command=self.on_brava_log_laden_button_click).pack(side=tk.LEFT, padx=10)
 
         log_frame = ttk.LabelFrame(main_frame, text="Gefundene System-Ereignisse", padding=10)
         log_frame.pack(fill=tk.BOTH, expand=True, pady=(10,0))
@@ -62,14 +63,51 @@ class SystemAnalyzerApp:
         self.tree.heading("SourceFile", text="Quelldatei", anchor="w"); self.tree.column("SourceFile", width=150, anchor="w")
         self.tree.heading("Error", text="Fehlermeldung"); self.tree.column("Error", width=700)
         self.tree.bind("<Double-1>", self._on_item_select)
-        
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side=tk.RIGHT, fill=tk.Y); self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.tree.tag_configure("error", background="#4B2525")
         self.tree.tag_configure("restart", foreground="#6495ED")
-        
+
         status_bar = ttk.Frame(self.parent, padding=(5, 2)); status_bar.pack(side=tk.BOTTOM, fill=tk.X)
         self.status_label = ttk.Label(status_bar, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
-    
+
+
+
+
+
+
+    def lade_und_analyse_brava_log(self, file_path):
+        return parse_brava_log(file_path)
+
+    def journey_analyse(self):
+        all_df = pd.concat([self.scanner_df, self.oms_df, self.brava_df], ignore_index=True)
+        journeys = {}
+        if not all_df.empty and 'TrayID' in all_df.columns:
+            for tray_id in all_df['TrayID'].unique():
+                journey_entries = all_df[all_df['TrayID'] == tray_id].sort_values('Timestamp')
+                journeys[tray_id] = journey_entries
+        return journeys
+
+    def on_brava_log_laden_button_click(self):
+        file_path = filedialog.askopenfilename(title="Wählen Sie die BRAVA/PLC Logdatei")
+        if not file_path:
+            return
+        self.brava_df = self.lade_und_analyse_brava_log(file_path)
+        self.update_journeys()
+
+    def update_journeys(self):
+        journeys = self.journey_analyse()
+        # Treeview mit allen Einträgen aktualisieren
+        all_df = pd.concat([self.scanner_df, self.oms_df, self.brava_df], ignore_index=True)
+        if not all_df.empty and 'Timestamp' in all_df.columns:
+            self.incidents_df = all_df.sort_values(by="Timestamp", na_position='first').reset_index(drop=True)
+            self._update_treeview()
+            self._populate_date_filter()
+            self.status_label.config(text=f"{len(self.incidents_df)} relevante Ereignisse gefunden.")
+
     def _start_analysis_from_dialog(self):
         dir_path = filedialog.askdirectory(title="Wählen Sie den Log-Ordner zur System-Analyse")
         if not dir_path: return
@@ -79,11 +117,11 @@ class SystemAnalyzerApp:
 
     def _run_analysis_thread(self, dir_path):
         def progress_callback(progress, message): self.parent.after(0, self._update_progress, progress, message)
-        
+
         files_to_exclude = ['yum.log', 'oms.log', 'scanner_bag.log', 'app.log']
         log_files = []
         progress_callback(0, "Suche nach relevanten Log-Dateien...")
-        
+
         for root, _, files in os.walk(dir_path):
             for file in files:
                 filename_lower = file.lower()
@@ -92,11 +130,11 @@ class SystemAnalyzerApp:
                 if filename_lower.endswith('.log'):
                     file_path = os.path.join(root, file)
                     log_files.append(file_path)
-        
+
         if not log_files:
             self.parent.after(0, self._finalize_analysis, False, "Keine relevanten .log-Dateien gefunden.")
             return
-            
+
         try:
             today_str = datetime.now().strftime("%Y-%m-%d")
             dest_dir = os.path.join("logs", "gatview_download", f"tec_{today_str}")
@@ -114,19 +152,19 @@ class SystemAnalyzerApp:
         for i, file_path in enumerate(log_files):
             filename = os.path.basename(file_path)
             progress_callback(int(((i + 1) / len(log_files)) * 100), f"Lese: {filename}")
-            
+
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     for line in f:
                         timestamp = self._parse_timestamp(line, year)
                         all_entries.append({'Timestamp': timestamp, 'SourceFile': filename, 'OriginalLog': line.strip()})
-            except Exception as e: 
+            except Exception as e:
                 print(f"FEHLER beim Lesen/Parsen der Datei {filename}: {e}")
-                
+
         if not all_entries:
             self.parent.after(0, self._finalize_analysis, False, "Keine lesbaren Einträge gefunden.")
             return
-            
+
         self.raw_df = pd.DataFrame(all_entries).sort_values(by="Timestamp", na_position='first').reset_index(drop=True)
         event_pattern = r"(?:ERROR|FAIL|FAULT|WARNING|Restarting Script)"
         error_mask = self.raw_df['OriginalLog'].str.contains(event_pattern, case=False, na=False)
@@ -134,9 +172,6 @@ class SystemAnalyzerApp:
         self.parent.after(0, self._finalize_analysis, True, f"{len(self.incidents_df)} relevante Ereignisse gefunden.")
 
     def _parse_timestamp(self, line, year):
-        """Versucht, verschiedene Datumsformate zu erkennen und zu parsen."""
-        
-        # Format 1: 2025-10-07 17:42:00.123 (YYYY-MM-DD HH:MM:SS.ms)
         match1 = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3})', line)
         if match1:
             try:
@@ -144,19 +179,16 @@ class SystemAnalyzerApp:
             except ValueError:
                 pass
 
-        # Format 2: Tue Oct 07 17:42:00.123 2025 (Wochentag Monat Tag HH:MM:SS.ms Jahr)
         match2 = re.search(r'(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3}\s+\d{4})', line)
         if match2:
             try:
                 return datetime.strptime(match2.group(1), '%a %b %d %H:%M:%S.%f %Y')
             except ValueError:
-                # Versuche es ohne Millisekunden
                 try:
                     return datetime.strptime(match2.group(1), '%a %b %d %H:%M:%S %Y')
                 except ValueError:
                     pass
 
-        # Format 3: Mon Jan 01 00:00:00.000 ohne Jahresangabe
         match3 = re.search(r'(\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}[\.,]\d{3})', line)
         if match3:
             try:
@@ -164,14 +196,13 @@ class SystemAnalyzerApp:
             except Exception:
                 pass
 
-        # Format 4: Logs mit MM-TT HH:MM:SS
         match4 = re.search(r'(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
         if match4:
             try:
                 return pd.to_datetime(f"{year}-{match4.group(1)}", format='%Y-%m-%d %H:%M:%S', errors='coerce')
             except Exception:
                 pass
-        
+
         return None
 
     def _finalize_analysis(self, success, message):
@@ -192,6 +223,7 @@ class SystemAnalyzerApp:
         if not valid_dates.empty:
             unique_dates = sorted(valid_dates.dt.date.unique())
             self.date_filter_combo['values'] = [d.strftime('%Y-%m-%d') for d in unique_dates]
+
     def _on_date_filter_select(self, event=None):
         selected_date_str = self.date_filter_combo.get()
         if not selected_date_str: return
@@ -212,8 +244,9 @@ class SystemAnalyzerApp:
             if re.search(restart_pattern, log_text, re.IGNORECASE): tags.append("restart")
             elif re.search(error_pattern, log_text, re.IGNORECASE): tags.append("error")
             self.tree.insert("", "end", iid=index, tags=tuple(tags), values=(
-                row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S') if pd.notna(row['Timestamp']) else 'N/A', 
-                row['SourceFile'], log_text))
+                row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S') if pd.notna(row['Timestamp']) else 'N/A',
+                row.get('SourceFile', row.get('Quelle', 'N/A')), log_text))
+
     def _on_item_select(self, event):
         selected_item = self.tree.focus()
         if not selected_item: return

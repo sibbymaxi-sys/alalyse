@@ -1,4 +1,3 @@
-# gateview_app.py
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, scrolledtext
 import pandas as pd
@@ -10,6 +9,9 @@ from datetime import datetime
 import traceback
 import multiprocessing
 import subprocess
+
+# NEU: BRAVA-Parser importieren
+from brava_log_parser import parse_log as parse_brava_log
 
 try:
     import sv_ttk
@@ -58,17 +60,10 @@ class GateViewApp(BaseApp):
         self.status_label = ttk.Label(self.status_bar, text="Bereit."); self.status_label.pack(side=tk.LEFT, padx=5)
 
     def _launch_system_analyzer(self):
-        """Startet die SystemAnalyzerApp in einem neuen Fenster."""
-        # Das Toplevel-Fenster für die neue App erstellen.
         new_window = tk.Toplevel(self)
-        
-        # Den Titel und die Größe des Fensters festlegen.
         new_window.title("Eigenständige System-Analyse (ClearScan)")
         new_window.geometry("1100x700")
-
-        # Eine Instanz der SystemAnalyzerApp erstellen und im neuen Fenster ausführen.
         SystemAnalyzerApp(new_window)
-        # Die neue App übernimmt nun die Kontrolle über dieses Fenster.
     
     def _show_help_window(self):
         help_win = tk.Toplevel(self); help_win.title("Anleitung - GateView Analyzer"); help_win.geometry("800x600"); help_win.transient(self); help_win.grab_set()
@@ -113,15 +108,31 @@ class GateViewApp(BaseApp):
         else: log_callback("Keine Dateien zum Herunterladen gefunden.")
         self.after(3000, log_win.close_window)
 
+    # --- NEU: BRAVA Funktion erweitert ---
     def _run_brava_trs_download(self):
-        config = cfg.load_config()
-        profile = config.get("ftp_profiles", {}).get("BRAVA TRS")
-        if not profile:
-            messagebox.showwarning("Kein Profil", "Kein 'BRAVA TRS' Profil in der Konfiguration gefunden.", parent=self)
-            return
-        log_win = SFTPLogWindow(self)
-        thread = threading.Thread(target=self._run_sftp_download, args=(profile, log_win), daemon=True)
-        thread.start()
+        auswahl = messagebox.askquestion(
+            "BRAVA/PLC Log laden",
+            "Möchtest du die BRAVA Logdatei per FTP laden?\n\nWähle 'Ja' für FTP oder 'Nein' für lokale Datei.",
+            icon='question'
+        )
+        if auswahl == 'yes':
+            config = cfg.load_config()
+            profile = config.get("ftp_profiles", {}).get("BRAVA TRS")
+            if not profile:
+                messagebox.showwarning("Kein Profil", "Kein 'BRAVA TRS' Profil in der Konfiguration gefunden.", parent=self)
+                return
+            log_win = SFTPLogWindow(self)
+            thread = threading.Thread(target=self._run_sftp_download, args=(profile, log_win), daemon=True)
+            thread.start()
+        else:
+            file_path = filedialog.askopenfilename(
+                title="Wähle die lokale BRAVA/PLC Logdatei",
+                filetypes=(("Logdateien", "*.log"), ("Alle Dateien", "*.*"))
+            )
+            if not file_path:
+                return
+            # NEU: BRAVA Logdatei wird wie ein normales Log verarbeitet!
+            self._start_loading_process([file_path])
 
     def on_ftp_download_complete(self, downloaded_files):
         messagebox.showinfo("Download Abgeschlossen", f"{len(downloaded_files)} Datei(en) heruntergeladen.\nAnalyse wird gestartet.", parent=self)
@@ -222,21 +233,32 @@ class GateViewApp(BaseApp):
 
     def _extract_routing_info(self, history_df):
         info = {'iata': 'N/A', 'machine_decision': 'N/A', 'operator_decision': 'N/A', 'final_command': 'N/A'}
-        if history_df.empty: return info
+        if history_df.empty:
+            return info
         valid_iatas = history_df['IATA'][(history_df['IATA'] != 'N/A') & (history_df['IATA'] != 'NO_READ')]
-        if not valid_iatas.empty: info['iata'] = valid_iatas.iloc[0]
+        if not valid_iatas.empty:
+            info['iata'] = valid_iatas.iloc[0]
         machine_dec_df = history_df[history_df['Klartext'].str.contains("Maschinelle Entscheidung")]
         if not machine_dec_df.empty:
             match = re.search(r":\s*(.+)", machine_dec_df.iloc[-1]['Klartext'])
-            if match: info['machine_decision'] = match.group(1).replace("**", "")
+            if match:
+                info['machine_decision'] = match.group(1).replace("**", "")
         op_dec_df = history_df[history_df['Klartext'].str.contains("Finale Operator-Entscheidung|Späte Operator-Entscheidung")]
         if not op_dec_df.empty:
             match = re.search(r":\s*(.+)", op_dec_df.iloc[-1]['Klartext'])
-            if match: info['operator_decision'] = match.group(1).replace("**", "")
+            if match:
+                info['operator_decision'] = match.group(1).replace("**", "")
         final_cmd_df = history_df[history_df['Klartext'].str.contains("Finaler Befehl an Förderanlage")]
         if not final_cmd_df.empty:
             match = re.search(r"gesendet: (.+)", final_cmd_df.iloc[-1]['Klartext'])
-            if match: info['final_command'] = match.group(1).replace("**", "")
+            if match:
+                info['final_command'] = match.group(1).replace("**", "")
+
+        brava_cmd_df = history_df[(history_df['Source'] == 'BRAVA') & (history_df['Klartext'].str.contains("Finaler Befehl an PLC"))]
+        if not brava_cmd_df.empty:
+            match = re.search(r"Finaler Befehl an PLC:\s*(.+)", brava_cmd_df.iloc[-1]['Klartext'])
+            if match:
+                info['final_command'] = match.group(1)
         return info
 
     def _show_bag_history_window(self, bag_id):

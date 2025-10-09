@@ -3,6 +3,7 @@ import re
 import pandas as pd
 from datetime import datetime
 import os
+from brava_log_parser import parse_log as parse_brava_log
 
 TS_PATTERN = re.compile(r"^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{2}\s+\d{2}:\d{2}:\d{2})\.\d+")
 BAG_ID_PATTERN = re.compile(r'\"(0\d{9})\"') 
@@ -67,6 +68,35 @@ def parse_line_to_klartext(line, source, bag_id, iata):
     if m := OMS_FINAL_CMD_PATTERN.search(line): return f"{prefix} **Finaler Befehl an Förderanlage gesendet: {map_disposition_to_text(m.group(1))}**"
     if m := OMS_GENERIC_CALL_PATTERN.search(line): return f"{prefix} Technischer Systemaufruf: {m.group(1)}"
     return None
+
+
+   #----BREVA-----
+
+def brava_klartext_mapping(eintrag):
+    # Beispiel: Mapping typischer BRAVA/PLC-Events ins Deutsche
+    if "Diverter reject" in eintrag:
+        return "Ausschleuser zurückgewiesen: " + eintrag
+    if "Tray with RFID" in eintrag:
+        return "Wanne erkannt: " + eintrag
+    if "CLEAR" in eintrag:
+        return "Frei: " + eintrag
+    if "REJECT" in eintrag:
+        return "Abgewiesen: " + eintrag
+    if "SEND TO" in eintrag:
+        return "Finaler Befehl an PLC: " + eintrag
+    return eintrag
+
+def parse_log_file(file_path, progress_callback=None):
+    # --- Integration des BRAVA-Parsers ---
+    if file_path.endswith("PlcLog.csv") or "brava" in file_path.lower():
+        df = parse_brava_log(file_path)
+        # Mapping/Übersetzung in Klartext
+        df["Klartext"] = df["Ereignis"].apply(brava_klartext_mapping)
+        # Stelle sicher, dass die DataFrame-Spalten zu deiner Pipeline passen
+        # z.B. Timestamp, BagID/TrayID, Klartext, Source/Quelle, etc.
+        df["Source"] = "BRAVA"
+        df["BagID"] = df.get("TrayID", "")  # oder TrayID → BagID
+        return df
 
 def parse_log_file(file_path, update_progress=None):
     # ... (Rest der Funktion bleibt unverändert)
