@@ -1,104 +1,57 @@
 # -*- coding: utf-8 -*-
 #
-# Spec file for building the GateView application with PyInstaller.
+# Optimierte Spec-Datei für den Bau der GateView-Anwendung mit PyInstaller.
 #
-# To use, run: pyinstaller GateView.spec
+# Ausführung im Terminal (im Projekt-Stammverzeichnis):
+# pyinstaller GateView.spec
 
-import os
+from PyInstaller.utils.hooks import collect_data_files
 
-block_cipher = None
+# Wir definieren den Namen der Anwendung hier einmal zentral
+APP_NAME = 'GateView'
+
+# PyInstaller sollte Tcl/Tk und sv_ttk automatisch finden. 
+# Falls nicht, ist dies der saubere Weg, die Daten explizit einzubinden.
+datas = collect_data_files('sv_ttk')
+
+# Füge weitere notwendige Dateien hinzu, die im Hauptverzeichnis liegen sollen.
+# requirements.txt wird normalerweise nicht für die fertige Anwendung benötigt.
+datas += [
+    ('config.ini', '.')
+]
 
 a = Analysis(
-    ['start.py'],
-    pathex=['D:/ClearScanAnalyzer/neue_Vers/ver3/test_V5'],
+    ['start.py'],  # Der Einstiegspunkt deines Programms
+    pathex=['.'],    # Suche nach Modulen im aktuellen Verzeichnis (keine festen Pfade!)
     binaries=[],
-    datas=[
-        ('C:/Users/opper/AppData/Local/Programs/Python/Python313/Lib/site-packages/sv_ttk', 'sv_ttk'),
-        ('requirements.txt', '.'),
-        ('config.ini', '.'),
-        # Manually add the tkinter library files
-        ('C:/Users/opper/AppData/Local/Programs/Python/Python313/tcl/tk8.6', 'tcl/tk8.6'),
-    ],
+    datas=datas,     # Verwendet die oben definierte, saubere Datenliste
     hiddenimports=[
-        # Standard-Bibliotheken, die dynamisch geladen werden
-        'tkinter', 
-        'sv_ttk',
-        'traceback', 
-        'sys', 
-        'multiprocessing', 
-        'os', 
-        're', 
-        'datetime',
-        'pandas',
-        'shutil',
-
-        # Modules aus deinem Projekt, die nicht direkt von start.py importiert werden
-        "advanced_search_dialog", 
-        "analysis_engine", 
-        "base_app",
-        "bhs_log_parser", 
-        "bms_log_parser", 
-        "check_dependencies", 
-        "clearscan_error_definitions", 
-        "config_manager", 
-        "data_processor", 
-        "dpp_log_parser", 
-        "error_analyzer", 
-        "error_definitions", 
-        "error_manager", 
-        "fault_translator", 
-        "fsm_log_parser", 
-        "ftp_client", 
-        "ftp_dialog", 
-        "ftp_dialog_advanced", 
-        "ftp_dialog_gateview", 
-        "ftp_dialog_mv3d", 
-        "gateview_app", 
-        "gateview_casefile_window", 
-        "gateview_system_analyzer", 
-        "gatview_example", 
-        "generate_installer", 
-        "help_texts", 
-        "installer", 
-        "iqtk_log_parser", 
-        "license_dialog", 
-        "license_generator", 
-        "license_manager", 
-        "license_validator", 
-        "log_parser", 
-        "log_previewer", 
-        "main_app", 
-        "main_window", 
-        "mv3d_app", 
-        "mv3d_definitions", 
-        "mv3d_log_parser", 
-        "parser", 
-        "plc_log_parser", 
-        "scs_log_parser", 
-        "sftp_log_window", 
-        "sftp_status_window", 
-        "system_analyzer_app", 
-        "test_license_system", 
-        "timespan_dialog",
-        "reportlab",
-        "numpy",
-        "tkcalendar",
-        "reportlab.lib.pagesizes",
-        "reportlab.platypus",
-        "brava_log_parser",
-        "reportlab.lib.styles",
-        "reportlab.lib.enums",
+        # Diese Liste ist gut, um sicherzustellen, dass alle deine Module gefunden werden.
+        # PyInstaller findet viele davon oft selbst, aber es schadet nicht, sie explizit aufzuführen.
+        'tkinter', 'sv_ttk', 'traceback', 'sys', 'multiprocessing', 'os', 're', 
+        'datetime', 'pandas', 'shutil', 'numpy', 'tkcalendar', 'reportlab',
+        
+        # --- Deine Projektmodule ---
+        "advanced_search_dialog", "analysis_engine", "base_app", "bhs_log_parser",
+        "bms_log_parser", "brava_log_parser", "check_dependencies", 
+        "clearscan_error_definitions", "config_manager", "data_processor", 
+        "dpp_log_parser", "error_analyzer", "error_definitions", "error_manager", 
+        "fault_translator", "fsm_log_parser", "ftp_client", "ftp_dialog_advanced", 
+        "gateview_app", "gateview_system_analyzer", "help_texts", "log_parser",
+        "license_dialog", "license_validator", "mv3d_app", "mv3d_definitions", 
+        "plc_log_parser", "scs_log_parser", "sftp_log_window", "system_analyzer_app",
+        "timespan_dialog"
     ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
-    cipher=block_cipher,
-    noarchive=False,
+    cipher=None,
+    noarchive=False
 )
-pyz = PYZ(a.pure, a.zipped_data,
-             cipher=block_cipher)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 exe = EXE(
     pyz,
@@ -107,17 +60,17 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='GateView',
+    name=APP_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=False,               # Wichtig für GUI-Anwendungen: Kein Konsolenfenster
     disable_windowed_traceback=False,
-    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    
 )

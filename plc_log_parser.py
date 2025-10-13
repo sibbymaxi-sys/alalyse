@@ -1,40 +1,107 @@
 # plc_log_parser.py
 import re
 import pandas as pd
-from datetime import datetime
+import os
 
-TS_PATTERN = re.compile(r"^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)")
+# Versuche, die Definitionen zu importieren. Wenn es nicht klappt, setze leere Dictionaries.
+try:
+    from error_definitions import TD_CODES, SD_CODES
+except ImportError:
+    TD_CODES, SD_CODES = {}, {}
+
+# === Regex-Muster für die Ereignisse in der 'Message'-Spalte ===
+IATA_PATTERN = re.compile(r'\b(\w{4,})\b') # Allgemeineres Muster, um IDs zu fangen
+
+TRACKING_DECISION_PATTERN = re.compile(r"Tracking Decision, Bag \w+, TD (\d+)", re.IGNORECASE)
+SORTING_DECISION_PATTERN = re.compile(r"Sorting Decision, Bag \w+, SD (\d+)", re.IGNORECASE)
+PHOTOCELL_PATTERN = re.compile(r"(IBDR|XBDP) PS:")
 RTR_BIT_PATTERN = re.compile(r"Ready To Receive Bit To BHS (High|Low)")
-# NEU: Erkennt jetzt spezifische Lichtschranken (Photo-Cells)
-PHOTOCELL_PATTERN = re.compile(r"(IBDR|XBDP) PS: \d+ BT: (\d+)")
+DIVERTER_PATTERN = re.compile(r"Diverter (\w+) activated", re.IGNORECASE)
+WAITING_PATTERN = re.compile(r"stopped at switch (\w+)", re.IGNORECASE)
+# Muster für allgemeine Prozess-Events
+PROCESSING_START_PATTERN = re.compile(r"Start processing Product file", re.IGNORECASE)
+PROCESSING_STOP_PATTERN = re.compile(r"Finished processing Product file", re.IGNORECASE)
+CLEARSCAN_START_PATTERN = re.compile(r"Start ClearScan", re.IGNORECASE)
+CLEARSCAN_STOP_PATTERN = re.compile(r"Stop ClearScan", re.IGNORECASE)
+
 
 def parse_line(line):
-    if m := RTR_BIT_PATTERN.search(line):
-        state = m.group(1)
-        explanation = "Scanner ist bereit, Wannen zu empfangen." if state == "High" else "Scanner ist NICHT bereit."
-        return f"[PLC] Meldesignal 'Ready To Receive' ist '{state}'. Bedeutung: {explanation}"
-        
-    if m := PHOTOCELL_PATTERN.search(line):
-        sensor, tray_id = m.groups()
-        sensor_name = "Einlauf-Lichtschranke (IBDR)" if sensor == "IBDR" else "Auslauf-Lichtschranke (XBDP)"
-        return f"[PLC] IST-ZUSTAND: Wanne '{tray_id}' hat '{sensor_name}' passiert."
-        
-    return None
+    """Analysiert eine einzelne Log-Zeile, sucht nach IATA und dem spezifischen Ereignis."""
+    iata_match = IATA_PATTERN.search(line)
+    bag_id_full = iata_match.group(1) if iata_match else None
 
-def parse_log(file_path):
+    # Tracking Decision (TD)
+    if td_match := TRACKING_DECISION_PATTERN.search(line):
+        code = td_match.group(1)
+        explanation = TD_CODES.get(code, f"Unbekannter Code")
+        return bag_id_full, f"[PLC] Tracking: {explanation} (TD-{code})"
+
+    # Sorting Decision (SD)
+    if sd_match := SORTING_DECISION_PATTERN.search(line):
+        code = sd_match.group(1)
+        explanation = SD_CODES.get(code, f"Unbekannter Code")
+        return bag_id_full, f"[PLC] Sortierung: {explanation} (SD-{code})"
+
+    # Lichtschranke
+    if PHOTOCELL_PATTERN.search(line):
+        sensor_name = "Einlauf-Lichtschranke (IBDR)" if "IBDR" in line else "Auslauf-Lichtschranke (XBDP)"
+        return bag_id_full, f"[PLC] Position: Wanne hat '{sensor_name}' passiert."
+    
+    # Weiche (Diverter)
+    if d_match := DIVERTER_PATTERN.search(line):
+        diverter_id = d_match.group(1)
+        return bag_id_full, f"[PLC] Aktion: Weiche '{diverter_id}' wurde aktiviert."
+
+    # Warten an einer Weiche
+    if w_match := WAITING_PATTERN.search(line):
+        switch_id = w_match.group(1)
+        return bag_id_full, f"[PLC] Zustand: Wanne wartet an Weiche '{switch_id}'."
+
+    # Ready-To-Receive Signal (ohne BagID)
+    if RTR_BIT_PATTERN.search(line):
+        state = "High" if "High" in line else "Low"
+        return None, f"[PLC] Systemsignal 'Ready To Receive' ist '{state}'."
+        
+    # Allgemeine Prozess-Events (ohne BagID)
+    if PROCESSING_START_PATTERN.search(line): return None, "[Prozess] Start der Verarbeitung"
+    if PROCESSING_STOP_PATTERN.search(line): return None, "[Prozess] Ende der Verarbeitung"
+    if CLEARSCAN_START_PATTERN.search(line): return None, "[Prozess] ClearScan gestartet"
+    if CLEARSCAN_STOP_PATTERN.search(line): return None, "[Prozess] ClearScan beendet"
+
+    return None, None
+
+def parse_log(file_path, progress_callback):
+    """Liest eine PlcLog.csv, normalisiert die BagID und übersetzt Fehlercodes."""
+    filename = os.path.basename(file_path)
     records = []
-    last_month = None
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        for line in f:
-            if ts_match := TS_PATTERN.search(line):
-                try:
-                    ts_str_no_year = ts_match.group(1).split('.')[0]
-                    dt_no_year = datetime.strptime(ts_str_no_year, "%a %b %d %H:%M:%S")
-                    year_to_use = 2025 
-                    if last_month and dt_no_year.month < last_month: year_to_use += 1
-                    dt_object = dt_no_year.replace(year=year_to_use)
-                    last_month = dt_object.month
-                except ValueError: continue
-                if klartext := parse_line(line):
-                    records.append({"Timestamp": dt_object, "Quelle": "PLC", "Ereignis": klartext, "OriginalLog": line.strip()})
+    
+    try:
+        progress_callback(10, f"Lese {filename}...")
+        # KORREKTUR: Liest die CSV-Datei und konvertiert die 'Time'-Spalte direkt
+        df = pd.read_csv(file_path, on_bad_lines='skip')
+        df['Time'] = pd.to_datetime(df['Time'], errors='coerce')
+        df.dropna(subset=['Time', 'Message'], inplace=True)
+
+        total_lines = len(df)
+        for i, row in df.iterrows():
+            if i % 100 == 0:
+                progress_callback(int((i/total_lines)*100), f"Analysiere {filename}...")
+
+            dt_object = row['Time']
+            line = row['Message']
+
+            bag_id_full, klartext = parse_line(line)
+            if klartext:
+                bag_id_normalized = bag_id_full[-4:] if bag_id_full else None
+                records.append({
+                    "Timestamp": dt_object, 
+                    "BagID": bag_id_normalized,
+                    "IATA_volĺständig": bag_id_full,
+                    "Source": "PLC", 
+                    "Klartext": klartext, 
+                    "OriginalLog": line.strip()
+                })
+    except Exception:
+        return pd.DataFrame()
+
     return pd.DataFrame(records)

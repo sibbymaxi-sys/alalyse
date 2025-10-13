@@ -1,5 +1,29 @@
 # help_texts.py
 
+LEGAL_NOTICE_TEXT = """
+Haftungsausschluss (Disclaimer)
+================================
+
+Diese Software wird "wie besehen" und ohne jegliche Gewährleistung, weder ausdrücklich noch stillschweigend, zur Verfügung gestellt.
+
+Der Autor und Entwickler übernimmt keine Haftung für Schäden, die aus der Nutzung oder der Unmöglichkeit der Nutzung dieser Software entstehen. Dies umfasst, ist aber nicht beschränkt auf, direkte, indirekte, zufällige oder Folgeschäden, wie Datenverlust, Betriebsunterbrechungen oder finanzielle Verluste.
+
+Die Verantwortung für die Interpretation der durch diese Software analysierten Daten und die daraus resultierenden Entscheidungen liegt allein beim Anwender. Die Software ist ein unterstützendes Werkzeug und ersetzt keine qualifizierte, menschliche Analyse oder fachmännische Beurteilung der Anlagenzustände.
+
+Durch die Nutzung dieser Software erklären Sie sich mit diesen Bedingungen einverstanden.
+
+================================
+Copyright-Informationen
+================================
+
+Copyright © 2025, Patrick Oppermann
+Alle Rechte vorbehalten.
+
+Jegliche Vervielfältigung oder Weitergabe der Software oder von Teilen davon ohne die ausdrückliche schriftliche Genehmigung des Autors ist untersagt.
+"""
+
+
+
 GATEVIEW_HELP_TEXT = """
 Programmbeschreibung:
 Der GateView Analyzer ist ein spezialisiertes Werkzeug zur Analyse des Lebenszyklus einzelner Gepäckstücke. Es fokussiert sich auf die chronologische Abfolge von Ereignissen für eine spezifische BagID, von der Erfassung bis zur finalen Entscheidung.
