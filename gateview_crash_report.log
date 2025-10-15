@@ -1,0 +1,10 @@
+Ein kritischer Import-Fehler ist aufgetreten:
+
+Die Datei 'tktooltip.py' oder die Bibliothek 'tktooltip' konnte nicht gefunden werden.
+
+Traceback (most recent call last):
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\gateview_app.py", line 30, in <module>
+    from system_analyzer_app import SystemAnalyzerApp
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\system_analyzer_app.py", line 8, in <module>
+    from tktooltip import ToolTip
+ModuleNotFoundError: No module named 'tktooltip'

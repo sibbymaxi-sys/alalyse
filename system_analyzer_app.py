@@ -36,6 +36,7 @@ class SystemAnalyzerApp:
         self.brava_df = pd.DataFrame()
         self.loading_win = None
         self._setup_ui()
+        self.journeys = []
 
     def _setup_ui(self):
         main_frame = ttk.Frame(self.parent, padding="10")

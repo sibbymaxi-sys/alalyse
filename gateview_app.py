@@ -275,7 +275,8 @@ class GateViewApp(BaseApp):
         for col in cols: self.tree.heading(col, text=col)
 
         if "Datenquellen" in cols: self.tree.column("Datenquellen", width=100, anchor='center')
-        if "Operator" in cols: self.tree.column("Operator", width=80, anchor='center')
+        if "Operator" in cols:
+            self.tree.column("Operator", width=80, anchor='center')
         
         for index, row in df.iterrows(): self.tree.insert("", "end", values=list(row[cols]), iid=index)
 
@@ -315,7 +316,7 @@ class GateViewApp(BaseApp):
 
     def _show_bag_history_window(self, bag_id):
         win = tk.Toplevel(self); win.title(f"Detail-Analyse für BagID: {bag_id}"); win.geometry("1100x800")
-        history_df = self.raw_df[self.raw_df['BagID'] == bag_id].sort_values(by="Timestamp")
+        history_df = self.raw_df[self.raw_df['BagID'] == str(bag_id)].sort_values(by="Timestamp")
         routing_info = self._extract_routing_info(history_df)
         summary_frame = ttk.LabelFrame(win, text="Analyse-Ergebnis", padding=10); summary_frame.pack(fill=tk.X, padx=10, pady=10)
         labels = {"IATA:": 'iata', "Maschinen-Entscheid:": 'machine_decision', "Operator-Entscheid:": 'operator_decision', "Finaler Operator:": 'operator', "Finaler Befehl an PLC:": 'final_command'}

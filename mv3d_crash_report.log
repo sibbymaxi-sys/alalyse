@@ -1,1 +1,8 @@
+Ein kritischer Import-Fehler ist aufgetreten:
 
+Die Datei 'plc_log_parser.py' konnte nicht gefunden werden.
+
+Traceback (most recent call last):
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\mv3d_app.py", line 28, in <module>
+    from plc_log_parser import parse_log as parse_plc
+ImportError: cannot import name 'parse_log' from 'plc_log_parser' (D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\plc_log_parser.py)

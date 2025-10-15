@@ -15,11 +15,25 @@ except ImportError:
     TD_CODES, SD_CODES = {}, {}
 
 # === Regex-Muster für alle bekannten Log-Typen ===
-TS_PATTERN = re.compile(r"^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{2}\s+\d{2}:\d{2}:\d{2})\.\d+")
+
+# --- Zeitstempel ---
 TS_PATTERN_GENERIC = re.compile(r"^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})")
+TS_PATTERN_LEGACY = re.compile(r"^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{2}\s+\d{2}:\d{2}:\d{2})")
+
+# --- IDs ---
 BAG_ID_PATTERN = re.compile(r'\"(0\d{9})\"')
-IATA_RFID_PATTERN = re.compile(r"(?:IATA:|with IATA|L=)\s*(?:\"|')?([\w\d\-]+)(?:\"|')?|\bRFID:\s*(\d{3,4})\b", re.IGNORECASE)
+IATA_RFID_PATTERN = re.compile(
+    r"IATA:\s*([\w\d\-]+)"          # Fall 1: IATA: 000L0453 (ohne Anführungszeichen)
+    r"|with IATA=\"([^\"]+)\""      # Fall 2: with IATA="1234"
+    r"|L='([^']+)'"                 # Fall 3: L='000L0453'
+    r"|Tray with RFID:\s*([\w\d\-]+)" # Fall 4: Tray with RFID: 000L0600
+    r"|\bRFID:\s*(\d{3,4})\b"       # Fall 5: RFID: 0162
+    r"|\bRFID\s+\"(\d{3,4})\""      # Fall 6: RFID "0146"
+    , re.IGNORECASE)
+# KORRIGIERT: Fehlendes Muster hinzugefügt
 DEVICE_ID_PATTERN = re.compile(r'@(CCT\d{4})')
+
+# --- Umfassende Musterliste für Klartext ---
 CREATE_BAG_PATTERN = re.compile(r'CreateNewBag')
 ASSOCIATED_IATA_PATTERN = re.compile(r'Associated.*with IATA=\"([^\"]+)\"')
 MACHINE_DISP_PATTERN = re.compile(r'SetDisposition\[(MACHINE_OBJECT|MACHINE_THREAT)\].*disp=\"(ALARM|CLEAR)\"')
@@ -61,15 +75,10 @@ OMS_GENERIC_CALL_PATTERN = re.compile(r"\[OMS:\d+:\w+\]:\s(?:virtual void|void|v
 PLC_TRACKING_DECISION_PATTERN = re.compile(r"Tracking Decision, Bag \w+, TD (\d+)", re.IGNORECASE)
 PLC_SORTING_DECISION_PATTERN = re.compile(r"Sorting Decision, Bag \w+, SD (\d+)", re.IGNORECASE)
 PLC_PHOTOCELL_PATTERN = re.compile(r"(IBDR|XBDP) PS:")
-PLC_RTR_BIT_PATTERN = re.compile(r"Ready To Receive Bit To BHS (High|Low)")
-PLC_PROCESS_START_PATTERN = re.compile(r"Start processing Product file", re.IGNORECASE)
-PLC_PROCESS_STOP_PATTERN = re.compile(r"Finished processing Product file", re.IGNORECASE)
-PLC_CLEARSCAN_START_PATTERN = re.compile(r"Start ClearScan", re.IGNORECASE)
-PLC_CLEARSCAN_STOP_PATTERN = re.compile(r"Stop ClearScan", re.IGNORECASE)
-BREVA_TRAY_RFID = re.compile(r"Tray with RFID: ([\w\d\-]+)")
 BREVA_DIVERTER_REJECT = re.compile(r"Diverter reject: .* IS NOT DIVERTED")
-BREVA_RESULT_CLEAR = re.compile(r"Result CLEAR for tray ([\w\d\-]+)")
 BREVA_SEND_TO_OSR = re.compile(r"SEND TO OSR ([\w\d\-]+)")
+BREVA_TRAY_RFID = re.compile(r"Tray with RFID: ([\w\d\-]+)")
+BREVA_RESULT_CLEAR = re.compile(r"Result CLEAR for tray ([\w\d\-]+)")
 BREVA_STATION_WARNING = re.compile(r"!!!! Warning: Station '([\w\d\-]+)'")
 
 def _parse_line_to_klartext(line, source, bag_id, iata):
@@ -242,7 +251,7 @@ def _parse_breva_plclog_csv(file_path, update_progress):
                 if bag_id_full:
                     num_part = re.search(r'(\d+)$', bag_id_full)
                     if num_part:
-                        try: normalized_id = int(num_part.group(1))
+                        try: normalized_id = str(int(num_part.group(1)))
                         except ValueError: pass
                 
                 records.append({
