@@ -1,73 +1,63 @@
 # clearscan_error_definitions.py
 import re
 
-# Die erweiterte Liste von Mustern. Spezifische Fehler stehen oben für eine bessere Erkennung.
-ERROR_PATTERNS = [
-    # --- Kritische Anwendungsfehler (aus app.log) ---
-    (re.compile(r"Application going down now", re.IGNORECASE), {
-        "Klartext": "Kritischer Fehler: Die Hauptanwendung wurde unerwartet beendet oder neu gestartet.",
-        "Aktion": "Prüfen Sie die Logs unmittelbar vor diesem Eintrag auf die eigentliche Fehlerursache. Dies ist oft ein Folgefehler."
-    }),
-    (re.compile(r"exited abnormally", re.IGNORECASE), {
-        "Klartext": "Software-Absturz: Ein Sub-Prozess wurde unerwartet beendet.",
-        "Aktion": "Dies deutet auf eine Software-Instabilität hin. Notieren Sie den Zeitstempel und kontaktieren Sie den Support."
-    }),
+# Diese "Datenbank" basiert auf den Informationen aus dem
+# ClearScan Troubleshooting Guide, Kapitel 5 (FC CODES).
+FC_CODES = {
+    # Code-Name: (Kategorie, Deutsche Klartext-Meldung)
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_NONE": (None, "Keine Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DIAG_FAULT": ("Error", "Diagnose-Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_SCRIPT_FAULT": ("Error", "Skript-Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_ERROR_MSG": ("Error", "Fehlermeldung (allgemein)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_ESTOP": ("Fatal", "Not-Halt (E-Stop) wurde betätigt"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_ILOCK": ("Fatal", "Interlock-Fehler (Sicherheitskreis unterbrochen, z.B. Panel)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_GANTRY_DIRECTION": ("Fatal", "Gantry dreht in die falsche Richtung"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_BAG_JAM": ("Warning", "Taschenstau (Ausgangs-Lichtschranke blockiert)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_TOO_MANY_BAGS": ("Warning", "Zu viele Taschen im System (Queue voll)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_WATCHDOG": ("Fatal", "System-Watchdog (Timer-Fehler)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DIAG_DISCONNECTION": ("Connection", "Diagnose-Verbindung unterbrochen"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_XRAY_KEY_OFF": ("Info", "Röntgenschlüssel ist auf AUS"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_SUB_FAIL": ("Error", "Sub-System Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_COMM_FAIL": ("Hardware", "Comm-Board Fehler (Kommunikation)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_ENCLOSURE_FAIL": ("Hardware", "Detektor-Abdeckung Interlock offen"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_CT_HVPS_FAIL": ("Hardware", "Röntgenquelle (Tank) Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_LS_HVPS_FAIL": ("Hardware", "Niederspannungs-Netzteil Fehler (nicht verwendet)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_CT_MOTOR_FAIL": ("Hardware", "Gantry-Motor Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_LS_MOTOR_FAIL": ("Hardware", "Förderband-Motor Fehler"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_SDB_FAIL": ("Hardware", "SDB-Fehler (Signal Distribution Board)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DPP_FAIL": ("Hardware", "DPP-Fehler (GPU Überhitzung?)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DCS_FAIL": ("Fatal", "DCS-Fehler (Software Absturz?)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DCS_NO_BARKER": ("Hardware", "Barker-Code (Encoder) fehlt oder falsch ausgerichtet"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DCS_NON_CONTIGUOUS_CNT": ("Hardware", "Encoder-Zählung außer der Reihe"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_DCS_ZERO_HBC_RATE": ("Fatal", "Encoder-Rate ist Null (Gantry steht, Faser-Problem, Strom Gantry)"),
+    "STAT_VAL_SCS_MACHINE_FAULTCAUSE_GANTRY_SPEED": ("Hardware", "Gantry-Drehzahl falsch"),
+}
 
-    # --- Bildqualitäts-Testfehler (aus iqtk.log / iqtk_mtf.log) ---
-    (re.compile(r"FINAL RESULT: FAIL", re.IGNORECASE), {
-        "Klartext": "System-Test fehlgeschlagen: Der automatische Bildqualitätstest (IQTK) ist fehlgeschlagen.",
-        "Aktion": "Die Detailergebnisse im Log-Eintrag prüfen (z.B. 'density=... fail'). Möglicherweise ist eine Neukalibrierung oder die Reinigung der Röntgenquelle erforderlich."
-    }),
-
-    # --- Datenbankfehler (aus dbm.log) ---
-    (re.compile(r"Insert failed", re.IGNORECASE), {
-        "Klartext": "Datenbankfehler: Ein Datensatz (vermutlich Gepäck-Info) konnte nicht geschrieben werden.",
-        "Aktion": "Datenbank-Service und Festplattenspeicher prüfen. Bei wiederholtem Auftreten den Support kontaktieren."
-    }),
+def get_fc_code_details(log_line):
+    """
+    Übersetzt ClearScan-Fehlercodes (FC) in verständlichen Text.
+    """
+    # Sucht nach "Reported Error - X (STAT_VAL_...)" oder "Reported Error - X ()"
+    match = re.search(r'Reported Error - (\d+) \((.*?)\)', log_line)
+    if not match:
+        return None, None
+        
+    error_num = match.group(1)
+    code_name = match.group(2)
     
-    # --- Kommunikationsfehler (aus iqs.log / iqs_stream.log) ---
-    (re.compile(r"is not connected, can't process", re.IGNORECASE), {
-        "Klartext": "Konnektivitätsfehler: Eine Komponente (z.B. CCT) ist nicht verbunden.",
-        "Aktion": "Die Netzwerkverbindung und den Betriebsstatus der genannten Komponente prüfen."
-    }),
-    (re.compile(r"could not locate msg object", re.IGNORECASE), {
-        "Klartext": "Kommunikationsfehler: Eine interne Nachricht zwischen Software-Modulen ging verloren.",
-        "Aktion": "Kann auf hohe Systemlast hindeuten. System beobachten. Bei häufigem Auftreten Netzwerkverbindungen und Modul-Status prüfen."
-    }),
-    (re.compile(r"select fails", re.IGNORECASE), {
-        "Klartext": "Bild-Server Fehler: Fehler beim Schreiben von Bilddaten.",
-        "Aktion": "Dies deutet auf ein Netzwerk- oder Festplattenproblem hin. Systemlast und Speicherplatz prüfen."
-    }),
+    # Fall 1: "Reported Error - 0 ()"
+    if error_num == '0' and not code_name:
+        return None, None # "Kein Fehler", wird nicht gelistet
 
-    # --- Allgemeine, aber wichtige Fehler als Fallback ---
-    (re.compile(r"Exception", re.IGNORECASE), {
-        "Klartext": "Unbehandelte Software-Ausnahme (Exception).",
-        "Aktion": "Ein unerwarteter Software-Fehler ist aufgetreten. Die Details im Log-Eintrag sind entscheidend für die Analyse durch den Support."
-    }),
-    (re.compile(r"ERROR", re.IGNORECASE), {
-        "Klartext": "Ein allgemeiner Fehler (ERROR) wurde protokolliert.",
-        "Aktion": "Den vollständigen Log-Eintrag auf spezifischere Details untersuchen, um die Ursache zu finden."
-    }),
-    (re.compile(r"FAIL", re.IGNORECASE), {
-        "Klartext": "Ein Fehlschlag (FAIL) wurde protokolliert.",
-        "Aktion": "Den vollständigen Log-Eintrag auf spezifischere Details untersuchen, um die Ursache zu finden."
-    }),
-    (re.compile(r"WARNING", re.IGNORECASE), {
-        "Klartext": "Eine Warnung (WARNING) wurde protokolliert.",
-        "Aktion": "Den Log-Eintrag prüfen. Warnungen deuten oft auf zukünftige Probleme oder unerwartete Zustände hin."
-    })
-]
-
-def get_error_details(log_line):
-    """
-    Durchsucht eine Log-Zeile nach bekannten Mustern und gibt die Klartext-Analyse zurück.
-    """
-    if not log_line or not isinstance(log_line, str):
-        return "Keine Daten", "Keine Aktion"
-
-    for pattern, details in ERROR_PATTERNS:
-        if pattern.search(log_line):
-            return details["Klartext"], details["Aktion"]
-            
-    # Fallback, wenn kein Muster passt
-    return "Unbekannter Fehler oder allgemeiner Log-Eintrag", "Den Log-Eintrag manuell auf Auffälligkeiten prüfen."
+    # Fall 2: "Reported Error - 4 (STAT_VAL_...)"
+    if code_name in FC_CODES:
+        category, message = FC_CODES[code_name]
+        if category:
+            # Füge den FC-Code zur Meldung hinzu, z.B. "[Fatal] Not-Halt (E-Stop) (FC4)"
+            return category, f"{message} (FC{error_num})" 
+    
+    # Fall 3: "Reported Error - 4 ()" (Unbekannter Code, aber nicht 0)
+    if error_num != '0':
+        return "Error", f"Unbekannter Fehlercode (FC{error_num})"
+        
+    return None, None

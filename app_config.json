@@ -43,7 +43,7 @@
         "Standard GateView": {
             "targets": {
                 "Scanner": {
-                    "host": "192.168.7.10",
+                    "host": "",
                     "port": "22",
                     "user": "admin",
                     "passwd": "IhrScannerPasswort",
@@ -145,102 +145,11 @@
                     ]
                 }
             }
-        },
-        "Clearscan": {
-            "targets": {
-                "Scanner": {
-                    "host": "192.168.7.10",
-                    "port": "22",
-                    "user": "sds",
-                    "passwd": "IhrPasswort",
-                    "paths": [
-                        "/opt/eds/log/bms.log",
-                        "/opt/eds/log/bhs.log",
-                        "/opt/eds/log/plc.log",
-                        "/opt/eds/log/scs.log",
-                        "/opt/eds/log/fsm.log",
-                        "/opt/eds/log/oms.log",
-                        "/opt/eds/log/scanner_bag.log"
-                    ]
-                }
-            }
-        },
-        "Clearscan Smart Scan": {
-            "targets": {
-                "Scanner": {
-                    "host": "192.168.7.10",
-                    "port": "22",
-                    "user": "sds",
-                    "passwd": "IhrPasswort",
-                    "download_rules": [
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/dbm.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/img_svr.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/ipi.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/iqs.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/iqs_stream.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/Conveyor.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/iqtk.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/optinet.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/scanner.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/scanner_bag.log"
-                        },
-                        {
-                            "type": "specific_file",
-                            "path": "/opt/eds/log/oms/oms.log"
-                        },
-                        {
-                            "type": "latest_with_pattern",
-                            "dir": "/opt/eds/log/dpp/",
-                            "pattern": "DPP_"
-                        },
-                        {
-                            "type": "latest_with_pattern",
-                            "dir": "/opt/eds/log/SCS/",
-                            "pattern": "SCS_"
-                        },
-                        {
-                            "type": "latest_with_pattern",
-                            "dir": "/opt/eds/log/diag/trace/",
-                            "pattern": "diagserv_"
-                        },
-                        {
-                            "type": "all_in_dir",
-                            "dir": "/opt/eds/log/dcs/"
-                        }
-                    ]
-                }
-            }
         }
     },
-    "last_mv3d_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V5/FKB_LOG_28_09",
-    "last_gateview_dir": "F:/Spur2"
+    "last_mv3d_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V6/mv3d_download_FDH",
+    "last_gateview_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V6/Spur2_0111",
+    "last_brava_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V6/Spur2_0111/PLC",
+    "last_oms_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V6/Spur2_0111",
+    "last_brava_error_dir": "D:/ClearScanAnalyzer/neue_Vers/ver3/test_V6/Spur2_0111/PLC"
 }

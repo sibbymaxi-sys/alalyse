@@ -1,79 +1,69 @@
 # brava_log_parser.py
-import re
+# HINWEIS: Zurückgesetzt auf V1. Diese Datei ist NICHT für CSV-Dateien.
+print("--- [V15-FIX] brava_log_parser.py wird geladen (Original V1) ... ---")
+
 import pandas as pd
-from datetime import datetime
+import re
+import os
 
-# === Erweiterte Muster für HMI-Ereignisse ===
-# Bestehendes Muster, um die primäre Tray-ID zu finden
-TRAY_PATTERN = re.compile(r'(Tray with RFID:|Tray ID:|Result (?:CLEAR|REJECT|ERROR) for tray :|RFID READER \d data ready - ID )\s*([A-Z0-9]+)')
-
-# Neue Muster für spezifische HMI-Aktionen oder -Zustände
-HMI_WAITING_PATTERN = re.compile(r"waiting for operator decision", re.IGNORECASE)
-HMI_MANUAL_CMD_PATTERN = re.compile(r"Manual reroute command", re.IGNORECASE)
-# (Hier können zukünftig weitere Muster hinzugefügt werden)
-
-# Muster für den Zeitstempel
-TS_PATTERN = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z')
-SEVERITY_MAP = {1: "INFO", 2: "WARNING", 4: "ERROR", 8: "EXCEPTION", 16: "DEBUG"}
-
-def extract_severity(classid):
-    try:
-        return SEVERITY_MAP.get(int(classid), "OTHER")
-    except Exception:
-        return "OTHER"
-
-def parse_brava_line(infotext):
+def parse_brava_line(line):
     """
-    Analysiert den Informationstext einer BRAVA-Logzeile,
-    sucht nach der TrayID und spezifischen HMI-Ereignissen.
+    Parst eine einzelne Zeile aus dem Brava-Log.
+    Sucht nach Mustern, um Tray-ID und eine Klartext-Nachricht zu extrahieren.
     """
-    tray_id_match = TRAY_PATTERN.search(infotext)
-    tray_id = tray_id_match.group(3) if tray_id_match else None
+    tray_id_match = re.search(r'\[TRAY_ID=(\d+)\]', line)
+    tray_id = tray_id_match.group(1) if tray_id_match else None
     
-    klartext = infotext.strip() # Standard-Klartext ist die ursprüngliche Nachricht
-
-    # Überschreibe den Klartext mit einer verständlicheren Meldung, wenn ein Muster passt
-    if HMI_WAITING_PATTERN.search(infotext):
-        id_text = f"für Wanne {tray_id} " if tray_id else ""
-        klartext = f"[HMI] System wartet {id_text}auf eine Operator-Entscheidung."
+    klartext = line.strip()
     
-    elif HMI_MANUAL_CMD_PATTERN.search(infotext):
-        id_text = f"für Wanne {tray_id}" if tray_id else "durch Operator"
-        klartext = f"[HMI] Manueller Umleitungsbefehl {id_text} ausgeführt."
+    decision_match = re.search(r'Final Decision is (\w+)', line)
+    if decision_match:
+        klartext = f"Finale Entscheidung: {decision_match.group(1)}"
         
     return tray_id, klartext
 
-def parse_log(file_path):
-    """Liest und verarbeitet eine komplette BRAVA-Logdatei."""
+def parse_log(file_path, progress_callback=None):
+    """
+    Liest eine gesamte Brava-Log-Datei (NICHT CSV) und wandelt sie in einen DataFrame um.
+    
+    GIBT ZURÜCK:
+    (df, None) - Gibt ein Tupel zurück, um mit dem neuen plclog_csv_parser kompatibel zu sein.
+                 Der zweite Wert (Errors) ist immer None.
+    """
     records = []
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        for line in f:
-            if line.startswith(";") or not line.strip():
+    filename = os.path.basename(file_path)
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        total_lines = len(lines)
+        for i, line in enumerate(lines):
+            if progress_callback and i % 100 == 0:
+                progress_callback(int((i / total_lines) * 100), f"Analysiere {filename}...")
+
+            timestamp_match = re.match(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)', line)
+            if not timestamp_match:
                 continue
-            
-            parts = line.strip().split(",", 5)
-            if len(parts) < 6:
-                continue
-            
-            timestamp_raw, _, classid, _, _, infotext = parts
+                
+            timestamp = pd.to_datetime(timestamp_match.group(1)) # Erzeugt TZ-aware (UTC)
+            infotext = line[timestamp_match.end(1):].strip()
             
             tray_id, klartext = parse_brava_line(infotext)
             
-            if tray_id: # Wir zeichnen nur Ereignisse auf, die einer Wanne zugeordnet werden können
-                ts = None
-                try:
-                    ts = datetime.strptime(timestamp_raw[:19], "%Y-%m-%dT%H:%M:%S")
-                except Exception:
-                    pass # Zeitstempel konnte nicht gelesen werden
-                
-                severity = extract_severity(classid)
-                records.append({
-                    "Timestamp": ts,
-                    "TrayID": tray_id, # Wird später in BagID umbenannt
-                    "Quelle": "BRAVA",
-                    "Ereignis": klartext,
-                    "OriginalLog": line.strip(),
-                    "Severity": severity
-                })
-                
-    return pd.DataFrame(records)
+            records.append({
+                "Timestamp": timestamp,
+                "Source": "BRAVA", # Quelle ist BRAVA
+                "IATA": tray_id,
+                "Klartext": klartext,
+                "OriginalLog": line.strip()
+            })
+            
+        df = pd.DataFrame(records)
+        print(f"--- brava_log_parser: {len(df)} BRAVA-Einträge gefunden.")
+        # Gebe (df, None) zurück, um kompatibel zu sein
+        return df, pd.DataFrame()
+        
+    except Exception as e:
+        print(f"Fehler beim Parsen von {filename}: {e}")
+        return pd.DataFrame(), pd.DataFrame()

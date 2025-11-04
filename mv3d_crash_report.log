@@ -1,8 +1,8 @@
 Ein kritischer Import-Fehler ist aufgetreten:
 
-Die Datei 'plc_log_parser.py' konnte nicht gefunden werden.
+Die Datei 'help_texts.py' konnte nicht gefunden werden.
 
 Traceback (most recent call last):
-  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\mv3d_app.py", line 28, in <module>
-    from plc_log_parser import parse_log as parse_plc
-ImportError: cannot import name 'parse_log' from 'plc_log_parser' (D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\plc_log_parser.py)
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\mv3d_app.py", line 23, in <module>
+    from help_texts import MV3D_HELP_TEXT
+ImportError: cannot import name 'MV3D_HELP_TEXT' from 'help_texts' (D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\help_texts.py)

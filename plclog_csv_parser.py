@@ -1,5 +1,5 @@
 # plclog_csv_parser.py
-print("--- [V22-FIX] plclog_csv_parser.py wird geladen (NUR Fehler, Kein-UTC) ... ---")
+print("--- [V23-FIX] plclog_csv_parser.py wird geladen (NUR Fehler, Kein-UTC) ... ---")
 
 import pandas as pd
 import re
@@ -115,7 +115,7 @@ def parse_error_log(file_path, header_row_index, progress_callback):
         traceback.print_exc()
         return pd.DataFrame()
 
-    print(f"--- plclog_csv_parser: {len(errors_data)} Fehler-Einträge gefunden.")
+    print(f"--- plclog_csv_parser (Error-Modus): {len(errors_data)} Fehler-Einträge gefunden.")
     return pd.DataFrame(errors_data)
 
 
@@ -139,6 +139,7 @@ def parse_log(file_path, load_mode, progress_callback=None):
         else:
             print(f"--- plclog_csv_parser: Modus ist 'errors', aber kein Error-Header (z.B. ;Timestamp,) gefunden.")
     else:
-        print(f"--- plclog_csv_parser: Falscher Modus ('{load_mode}') an Fehler-Parser gesendet.")
+        # Wenn Button 3 (journeys) fälschlicherweise diesen Parser aufruft
+        print(f"--- plclog_csv_parser: Falscher Modus ('{load_mode}') an Fehler-Parser gesendet. Ignoriere.")
     
     return journeys_df, errors_df
