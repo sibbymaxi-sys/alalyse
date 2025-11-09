@@ -1,8 +1,7 @@
-# mv3d_error_definitions.py
+# mv3d_error_definitions.py (Version 3.0 - MASTER)
+# Kombiniert die originale User-Datei mit den neuen
+# Regeln aus den diagserv/optinet-Snippets.
 import re
-
-# Dies ist die Fehler-Datenbank für die MV3D System-Analyse.
-# Erweitert basierend auf den bereitgestellten Log-Informationen und diagserv snippet.
 
 # Das Format ist:
 # r"Ein Regex-Muster, das den Fehler im Log findet": {
@@ -12,17 +11,17 @@ import re
 # (.*) fängt variable Teile ein, {0}, {1} etc. fügen sie in den Text ein.
 
 ERROR_DEFINITIONS = {
-    # --- SCS/BMS Faults (mfc= / fault_cause=) ---
-    # REFINEMENT: Updated regex to match exact formats found in logs
-    r"mfc=([1-9]\d*)" : { # Findet mfc= gefolgt von Zahl > 0 (aus scs.log)
+    
+    # --- SCS/BMS Faults (mfc= / fault_cause=) (Aus deiner Datei) ---
+    r"mfc=([1-9]\d*)" : { 
         "cause": "SCS meldet Hauptfehlerursache (mfc) = {0}. Siehe SCS Fault Code Liste.",
         "action": "Prüfen Sie die SCS Fault Code Liste für FC {0}. Suchen Sie nach spezifischeren Fehlermeldungen im scs.log oder anderen Logs."
     },
-    r"fault_cause = ([1-9]\d*)": { # Findet fault_cause = gefolgt von Zahl > 0 (aus bms.log)
+    r"fault_cause = ([1-9]\d*)": { 
         "cause": "BMS meldet Fehlerursache (fault_cause) = {0}. Siehe SCS Fault Code Liste.",
         "action": "Prüfen Sie die SCS Fault Code Liste für FC {0}. Suchen Sie nach spezifischeren Fehlermeldungen im bms.log oder anderen Logs."
     },
-     r"KEYPOWEROFF|\(FC 3\)": { # Spezifischer
+     r"KEYPOWEROFF|\(FC 3\)": { 
         "cause": "Der Hauptschalter (Key Power) ist ausgeschaltet (FC 3).",
         "action": "Schalten Sie das System mit dem Schlüssel ein."
     },
@@ -207,7 +206,7 @@ ERROR_DEFINITIONS = {
         "action": "Überprüfen Sie die Kühlung/Lüftung des Bereichs '{0}' und die Umgebungstemperatur."
     },
 
-    # --- FSM Log Errors ---
+    # --- FSM Log Errors (Aus deiner Datei) ---
     r"limitSwitchWarning=1": {
         "cause": "Warnung (FSM Log): Endschalter für Bandlauf (Belt Tracking) wurde erreicht.",
         "action": "Überprüfen Sie den Bandlauf (Belt Tracking) und justieren Sie ihn gemäß Anleitung."
@@ -217,7 +216,7 @@ ERROR_DEFINITIONS = {
         "action": "System stoppt. Überprüfen Sie sofort den Bandlauf und die Mechanik. Justieren/Reparieren Sie den Bandlauf."
     },
 
-    # --- PLC Log Errors ---
+    # --- PLC Log Errors (Aus deiner Datei) ---
     r"\[plc.*?\].*bag jam": {
         "cause": "Taschenstau (Bag Jam) im PLC-Log gemeldet.",
         "action": "Überprüfen Sie das PLC.log auf die genaue Position (IPEC, XPEC, interne PECs?). Beseitigen Sie die Blockade."
@@ -235,15 +234,15 @@ ERROR_DEFINITIONS = {
         "action": "Zwei Taschen wurden zu dicht aufeinander erkannt. Überprüfen Sie die BHS-Zuführung auf korrekten Abstand."
     },
      r"tracking pec.*error|fault": {
-         "cause": "Fehler im Zusammenhang mit einem Tracking PEC gemeldet (PLC Log).",
-         "action": "Überprüfen Sie das PLC.log auf Details. Prüfen Sie die betroffene Lichtschranke (Verschmutzung, Ausrichtung, Kabel)."
+       "cause": "Fehler im Zusammenhang mit einem Tracking PEC gemeldet (PLC Log).",
+       "action": "Überprüfen Sie das PLC.log auf Details. Prüfen Sie die betroffene Lichtschranke (Verschmutzung, Ausrichtung, Kabel)."
      },
      r"Miss Bags S1: (\d+) S2: (\d+) S3: (\d+)": {
         "cause": "PLC Log: Misstrack Zählerstände - S1 (Eingang): {0}, S2 (Scan): {1}, S3 (Ausgang): {2}.",
         "action": "Hohe Zahlen in S1/S3 deuten auf Probleme mit Kulissen/Übergabe hin. S2 ist selten. Beobachten Sie die Entwicklung der Zähler."
      },
 
-    # --- BHS / Scanner Bag Log Errors ---
+    # --- BHS / Scanner Bag Log Errors (Aus deiner Datei) ---
     r"exceptions = 2": {
         "cause": "BNA (Bag Not Analyzed) aufgrund von Hardware-/Verbindungsproblemen (Scanner Bag Log: Exception 2).",
         "action": "Überprüfen Sie Netzwerk- und Hardwareverbindungen im Datenpfad (Detektoren -> HCB -> DPP -> IAC)."
@@ -265,7 +264,7 @@ ERROR_DEFINITIONS = {
         "action": "Stellen Sie sicher, dass genügend Level 2b Operatoren an den View Stations eingeloggt sind."
     },
 
-    # --- Trace Log Errors (Based on text descriptions) ---
+    # --- DCS/DPP/Trace Log Errors (Aus deiner Datei) ---
     r"fault flags .* HV-reg": {
        "cause": "Trace Log: HVPS 'HV-reg' Fehler - Generischer Fehler, oft Röhren-Arcing oder Filamentkabel.",
        "action": "System aus, 10min warten! HV-Verbindungen prüfen/reinigen/neu fetten. Gasket prüfen. HVPS-Diagnose durchführen."
@@ -279,15 +278,13 @@ ERROR_DEFINITIONS = {
        "action": "HVPS muss ersetzt werden."
     },
     r"FAILURES DETECTED during HVPS self test": {
-        "cause": "Trace Log: Fehler während des HVPS Selbsttests.",
-        "action": "Überprüfen Sie die spezifischen Fehlermeldungen im Trace Log rund um diesen Eintrag. Führen Sie HVPS-Diagnose durch."
+         "cause": "Trace Log: Fehler während des HVPS Selbsttests.",
+         "action": "Überprüfen Sie die spezifischen Fehlermeldungen im Trace Log rund um diesen Eintrag. Führen Sie HVPS-Diagnose durch."
     },
-    r"Arc count": {
-        "cause": "Trace Log: Zähler für Lichtbögen (Arcs) in HVPS/Röhre wird erwähnt.",
-        "action": "Hohe oder steigende 'Arc counts' deuten auf Probleme mit HV-Verbindungen, Gasket oder Röhre hin. Siehe 'Tube Arcing'."
+    r"Arc count": { # Hinweis: Dies wird von der spezifischeren diagserv-Regel (unten) überschrieben, wenn sie zutrifft
+         "cause": "Trace Log: Zähler für Lichtbögen (Arcs) in HVPS/Röhre wird erwähnt.",
+         "action": "Hohe oder steigende 'Arc counts' deuten auf Probleme mit HV-Verbindungen, Gasket oder Röhre hin. Siehe 'Tube Arcing'."
     },
-
-    # --- DCS Log Errors ---
     r"\[dcs.*?].*filler": {
         "cause": "DCS/DPP Log: 'filler' Daten deuten auf unvollständige oder fehlerhafte Detektordaten hin.",
         "action": "Prüfen Sie Detektorstatus (ADD plots), DCB/HCB-Verbindungen, Ausrichtung, HV-Stabilität."
@@ -304,8 +301,6 @@ ERROR_DEFINITIONS = {
         "cause": "DCS Log: Detektor-Array {0} (0-6) hat die Verbindung verloren.",
         "action": "Überprüfen Sie 5V-Stromversorgung des Arrays, Flachbandkabel zum Combiner/HCB, HCB-Status."
     },
-
-    # --- DPP Log Errors ---
     r"max Y = (\d+)": {
        "cause": "DPP Log: Maximale Taschenhöhe {0} gemessen.",
        "action": "Wenn dieser Wert konstant >= 233 ist, reinigen Sie den Höhendetektor-Streifen."
@@ -322,36 +317,76 @@ ERROR_DEFINITIONS = {
         "cause": "DPP Log: Session Error (Receiver) - Problem beim Datenempfang am IAC.",
         "action": "Überprüfen Sie IAC-Logs und die Netzwerkverbindung zwischen DPP und IAC."
     },
-
-     # --- GPU_IRC Log Errors ---
      r"dataError = ([^0].*)": {
         "cause": "GPU/IRC Log: dataError Code '{0}' gemeldet (0 ist normal).",
         "action": "Untersuchen Sie GPU/IRC-Logs auf spezifische Fehler. Prüfen Sie Datenfluss HCB->DPP->IRC."
     },
 
-    # --- SCC app.log ---
+    # --- SCC app.log (Aus deiner Datei) ---
     r"L-3 Application going down now!!": {
         "cause": "SCC app.log: Die Hauptanwendung wird beendet.",
         "action": "Dies markiert einen Shutdown oder Neustart des Systems."
     },
 
-    # --- Diagserv Log Errors ---
-    r"Connection to Diagserver is broken": {
+    # --- NEU: Diagserv & HVPS Fehler (Basierend auf 'diagserv' Snippet) ---
+    r"(FAIL-\d+ <cDevSystic::Connect>.*error failed)": {
+        "cause": "Diagserv: SYSTIC-Verbindungsfehler (FAIL-6).",
+        "action": "Prüfen Sie SYSTIC-Board, Kabel und Stromversorgung."
+    },
+    r"(FAIL-\d+ <SYSTIC> Device signaled fault.*= NO)": {
+        "cause": "Diagserv: SYSTIC meldet einen Hardware-Fehler (z.B. HVPS Ready = NO, Healthy = NO).",
+        "action": "Prüfen Sie die gemeldete Komponente (z.B. HVPS, DCB) im Diagserv-Log."
+    },
+    r"(WARN-\d+ <SYSTIC> Device signaled fault.*= NO)": {
+        "cause": "Diagserv: SYSTIC meldet eine Hardware-Warnung (z.B. DCB7 Connected = NO).",
+        "action": "Prüfen Sie die gemeldete Komponente. Dies ist oft ein unbenutzter, aber überwachter Port."
+    },
+    r"(FAIL-\d+ <HVPS\d+> Device parameter Arc count = \d+ outside of range)": {
+        "cause": "Diagserv: HVPS meldet 'Arc count' außerhalb des zulässigen Bereichs.",
+        "action": "HVPS-Fehler (Lichtbögen). Siehe 'Tube Arcing' in der Doku. HV-Verbindungen prüfen."
+    },
+    r"(FAIL-\d+ <HVPS\d+> Device signaled fault 'Fault flags'.*= (.*))": {
+        "cause": "Diagserv: HVPS meldet Fehler-Flags: {0}.",
+        "action": "Prüfen Sie die HVPS-Fehler-Flags (z.B. INT_INTLK, HV_REG). Siehe Trace.log für Details."
+    },
+    r"(server-src: Seasoning FAILED)": {
+        "cause": "Diagserv: Das 'Tube Seasoning' (Konditionierung) ist fehlgeschlagen.",
+        "action": "Überprüfen Sie die HVPS-Fehler im 'diagserv'-Log unmittelbar vor dieser Meldung."
+    },
+     r"server-src: \[failed\] HVPS not ready": {
+        "cause": "Diagserv: HVPS meldet 'nicht bereit' während des SRC (Seasoning).",
+        "action": "Überprüfen Sie die HVPS-Fehler im 'diagserv'-Log unmittelbar vor dieser Meldung."
+    },
+    r"(FAIL-a <::FaultHandler\(\)> System exception)": {
+        "cause": "Diagserv: Kritischer Systemabsturz (System exception, 'FAIL-a').",
+        "action": "Schwerwiegender Software- oder Hardwarefehler. Starten Sie das System neu. Bei Wiederholung Service kontaktieren."
+    },
+    r"(Connection to Diagserver is broken)": {
         "cause": "Die Verbindung zum Diagnoseserver (Diagserver) wurde unterbrochen.",
-        "action": "Überprüfen Sie den Status des Diagserver-Prozesses und die Netzwerkverbindungen (wahrscheinlich localhost)."
+        "action": "Überprüfen Sie den Status des Diagserver-Prozesses."
     },
 
-     # --- Generic/Catch-All ---
-     r"(ERROR|FATAL|Traceback|FAILURES DETECTED)": { # Added FAILURES DETECTED
-        "cause": "Eine generische Fehlermeldung wurde gefunden.",
-        "action": "Überprüfen Sie die Zeile und die umliegenden Log-Einträge auf spezifischere Details zur Ursache."
-     }
+    # --- NEU: OptiNet Fehler (Basierend auf 'optinet' Snippet) ---
+    r"(Error: ConnMgr::startTcpClient: unable to open client connection)": {
+        "cause": "Optinet: Verbindung zum Server (z.B. 'mcs') konnte nicht geöffnet werden.",
+        "action": "Überprüfen Sie die Netzwerkverbindung und ob der Ziel-Server (mcs) läuft."
+    },
+    r"(Error: bad target.*addr = ""\(null\)"")": {
+        "cause": "Optinet: Interner Kommunikationsfehler (bad target, null address).",
+        "action": "Software-Problem oder fehlerhafte Konfiguration. Systemneustart versuchen."
+    },
 
+    # --- KORRIGIERTER Generic/Catch-All ---
+    # Dieser fängt jetzt ERROR, FATAL, FAIL, FAILED, [fault] und WARN
+    r"(ERROR|FATAL|Traceback|FAILURES DETECTED|FAIL-\w+|\[failed\]|FAILED|\[fault\]|WARN-\w+)": {
+        "cause": "Eine generische Fehlermeldung (ERROR, FAIL, FAILED, FAULT, WARN) wurde gefunden.",
+        "action": "Überprüfen Sie die Zeile und die umliegenden Log-Einträge auf spezifischere Details zur Ursache."
+    }
 }
 
 
-# Diese Regeln definieren, welche Zeilen im Log-Kontext
-# zusätzlich hervorgehoben werden sollen.
+# --- KORRIGIERTE LOG_CONTEXT_RULES ---
+# Hinzugefügt: FAILED, [failed], [fault], WARN
 LOG_CONTEXT_RULES = [
    r"BagID",
    r"IATA",
@@ -370,7 +405,11 @@ LOG_CONTEXT_RULES = [
    r"L-3 Application going down",
    r"fault flags",
    r"Arc count",
-   r"FAIL", # Keep generic FAIL highlight
+   r"FAIL",
+   r"FAILED", # NEU
+   r"\[failed\]", # NEU
+   r"\[fault\]", # NEU
+   r"WARN", # NEU
    r"arrayData",
    r"filler",
    r"no barker",
@@ -380,8 +419,8 @@ LOG_CONTEXT_RULES = [
    r"dataError =",
    r"disconnected",
    r"limitSwitch",
-   r"Diagserver", # Highlight Diagserver messages
-   r"HVPS",       # Highlight HVPS control messages
-   r"ESTOP",      # Highlight E-Stop messages
-   r"ILOCK",      # Highlight Interlock messages
+   r"Diagserver", 
+   r"HVPS",
+   r"ESTOP",
+   r"ILOCK",
 ]

@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sv_ttk
 from gateview_app import GateViewApp
+from mv3d_app import MV3DApp
 
 # Erbt jetzt von ttk.Frame statt von tk.Tk
 class MainApplication(ttk.Frame):
@@ -22,7 +23,7 @@ class MainApplication(ttk.Frame):
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         ttk.Label(main_frame, text="Bitte wählen Sie ein Analyse-Modul:", font=("Helvetica", 14)).pack(pady=10)
-        ttk.Button(main_frame, text="GateView Analyzer öffnen", command=self.open_gateview).pack(pady=10, fill=tk.X)
+        ttk.Button(main_frame, text="CS Analyzer öffnen", command=self.open_gateview).pack(pady=10, fill=tk.X)
         
         ttk.Button(main_frame, text="MV3D Analyzer öffnen", command=self.open_mv3d).pack(pady=10, fill=tk.X)
         

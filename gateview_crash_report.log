@@ -1,10 +1,8 @@
 Ein kritischer Import-Fehler ist aufgetreten:
 
-Die Datei 'reportlab.plat_ypus.py' oder die Bibliothek 'reportlab.plat_ypus' konnte nicht gefunden werden.
-
-HINWEIS: Wenn 'plclog_csv_parser' fehlt, ist das erwartet. Bitte stelle diese Datei bereit.
+Die Datei 'oms_report_generator.py' oder die Bibliothek 'oms_report_generator' konnte nicht gefunden werden.
 
 Traceback (most recent call last):
-  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\gateview_app.py", line 40, in <module>
-    from reportlab.plat_ypus import SimpleDocTemplate, Paragraph
-ModuleNotFoundError: No module named 'reportlab.plat_ypus'
+  File "D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\gateview_app.py", line 35, in <module>
+    from oms_report_generator import generate_oms_report
+ImportError: cannot import name 'generate_oms_report' from 'oms_report_generator' (D:\ClearScanAnalyzer\neue_Vers\ver3\test_V6\oms_report_generator.py)

@@ -206,11 +206,31 @@ def _process_log_file_mv3d(file_path):
 
 
 # === Main Application Class ===
-class MV3DSystemAnalyzerApp(BaseApp): # Korrekter Klassenname
-    def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, app_name="MV3D System Analyzer", version="1.0", *args, **kwargs)
-        self.raw_df = pd.DataFrame(); self.incidents_df = pd.DataFrame(); self.filtered_incidents_df = pd.DataFrame(); self.loading_win = None
+class MV3DSystemAnalyzerApp(BaseApp):
+    def __init__(self, parent, incidents_df=None, raw_df=None, *args, **kwargs): # HINZUFÜGEN: incidents_df und raw_df
+        super().__init__(parent, app_name="MV3D System Analyzer", version="1.0")
+        
+        # KORREKTUR: Verwende die übergebenen Daten, WENN sie existieren.
+        self.raw_df = raw_df if raw_df is not None and not raw_df.empty else pd.DataFrame()
+        self.incidents_df = incidents_df if incidents_df is not None and not incidents_df.empty else pd.DataFrame()
+        self.filtered_incidents_df = self.incidents_df.copy() # Wichtig: Kopie erstellen
+        self.loading_win = None
+        
         self._setup_ui()
+        
+        # NEU: Wenn Daten übergeben wurden, fülle sofort die Ansicht
+        if not self.incidents_df.empty:
+            self.after(100, self._populate_and_filter_on_load) # kleiner Delay für UI-Aufbau
+
+    def _populate_and_filter_on_load(self):
+        """Hilfsfunktion, um die UI nach dem Laden zu füllen."""
+        try:
+            self._populate_filters()
+            self._apply_filters()
+            self.status_label.config(text=f"{len(self.incidents_df)} Ereignisse aus Hauptfenster geladen.")
+        except Exception as e:
+            print(f"Fehler beim initialen Füllen der UI: {e}")
+            self.status_label.config(text="Fehler beim Laden der Filter.")
 
     def _setup_ui(self):
         # --- UI BASIEREND AUF DEINEM ORIGINAL ---

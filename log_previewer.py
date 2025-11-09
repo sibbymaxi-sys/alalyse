@@ -1,4 +1,8 @@
 # log_previewer.py
+# VERSION 2.0
+# - FIX: Die preview_log_directory-Funktion nutzt jetzt die Regex-Muster
+#   aus der parser_map, anstatt die Keys zu vergleichen.
+
 import os
 import re
 from datetime import datetime
@@ -14,7 +18,7 @@ TIMESTAMP_REGEX = re.compile(
 DATE_FORMATS = [
     "%a %b %d %H:%M:%S",
     "%Y-%m-%d %H:%M:%S",
-    "%Y%m%d%H%M%S"
+    "%Y%m%d%H:%M%S"
 ]
 
 def get_timestamp_from_line(line):
@@ -31,9 +35,9 @@ def get_timestamp_from_line(line):
         try:
             # Füge ein Dummy-Jahr hinzu, wenn es fehlt, um es parsen zu können
             if len(ts_str) == 19 and ts_str[4] != '-': # Format ohne Jahr
-                 dt_no_year = datetime.strptime(ts_str, fmt)
-                 # Wir nehmen das aktuelle Jahr an, da die genaue Bestimmung hier zu aufwändig ist
-                 return dt_no_year.replace(year=datetime.now().year)
+                dt_no_year = datetime.strptime(ts_str, fmt)
+                # Wir nehmen das aktuelle Jahr an, da die genaue Bestimmung hier zu aufwändig ist
+                return dt_no_year.replace(year=datetime.now().year)
             return datetime.strptime(ts_str, fmt)
         except ValueError:
             continue
@@ -69,13 +73,37 @@ def get_log_file_daterange_and_count(file_path, buffer_size=8192):
         return None, None, 0
 
 def preview_log_directory(dir_path, parser_map):
+    """
+    KORRIGIERTE LOGIK (v2.0):
+    Durchsucht den Ordner und gleicht Dateinamen mit den Regex-Mustern
+    in der parser_map ab.
+    """
     files_to_check = []
+    
+    # Baue eine Liste aller Regex-Muster aus der Map
+    patterns_to_check = []
+    for info in parser_map.values():
+        if 'file_pattern' in info:
+            try:
+                patterns_to_check.append(re.compile(info['file_pattern']))
+            except re.error:
+                print(f"WARNUNG (Previewer): Ungültiges Regex ignoriert: {info['file_pattern']}")
+
+    if not patterns_to_check:
+        print("FEHLER (Previewer): Keine gültigen file_pattern in parser_map gefunden.")
+        return None, None, 0
+
+    # Gehe durch den Ordner und vergleiche mit den Mustern
     for root, _, files in os.walk(dir_path):
         for file in files:
-            if file in parser_map:
-                files_to_check.append(os.path.join(root, file))
+            for pattern in patterns_to_check:
+                if pattern.match(file):
+                    files_to_check.append(os.path.join(root, file))
+                    break # Datei passt, nächste Datei prüfen
 
-    if not files_to_check: return None, None, 0
+    if not files_to_check: 
+        print("INFO (Previewer): Keine Dateien im Ordner gefunden, die den Mustern entsprechen.")
+        return None, None, 0
 
     min_date, max_date, total_entries = None, None, 0
     for file in files_to_check:
